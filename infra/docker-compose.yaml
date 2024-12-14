@@ -1,0 +1,15 @@
+services:
+  avalia_pro_api:
+    build:
+      context: ../api
+      dockerfile: ../api/Dockerfile
+      target: development
+    command: npm run start:debug
+    env_file:
+      - ../api/.env
+    ports:
+      - '3000:3000'
+      - '9229:9229'
+    volumes:
+      - ../api:/usr/src/app
+      - /usr/src/app/node_modules
