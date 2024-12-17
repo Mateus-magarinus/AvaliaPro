@@ -8,8 +8,8 @@
   "scripts": {
     "build": "nest build",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
-    "docker": "docker compose -f ../infra/docker-compose.yaml up -d",
-    "docker:build": "docker compose -f ../infra/docker-compose.yaml up --build -d",
+    "docker": "docker compose -p avalia-pro -f ../infra/docker-compose.yaml up -d",
+    "docker:build": "docker compose -p avalia-pro -f ../infra/docker-compose.yaml up --build -d",
     "start": "nest start",
     "start:dev": "nest start --watch",
     "start:debug": "nest start --tsc --watch --debug 0.0.0.0:9229",
@@ -23,6 +23,7 @@
   },
   "dependencies": {
     "@nestjs/common": "^10.0.0",
+    "@nestjs/config": "^3.3.0",
     "@nestjs/core": "^10.0.0",
     "@nestjs/jwt": "^10.2.0",
     "@nestjs/passport": "^10.0.3",
@@ -44,7 +45,7 @@
     "@types/bcrypt": "^5.0.2",
     "@types/express": "^5.0.0",
     "@types/jest": "^29.5.2",
-    "@types/node": "^20.3.1",
+    "@types/node": "^20.17.10",
     "@types/passport-jwt": "^4.0.1",
     "@types/supertest": "^6.0.0",
     "@typescript-eslint/eslint-plugin": "^8.0.0",
