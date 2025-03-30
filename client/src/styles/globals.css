@@ -1,0 +1,13 @@
+@import "tailwindcss";
+
+body {
+  margin: 0;
+  padding: 0;
+}
+
+/* stylelint-disable-next-line at-rule-no-unknown */
+@theme {
+  --color-brand-dark: #051d40;
+  --color-brand-light: #b1d4e0;
+  --font-corbel: Corbel, sans-serif;
+}
