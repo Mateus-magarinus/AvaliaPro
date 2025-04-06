@@ -1,11 +1,12 @@
-import { Column, Entity, OneToMany, Unique } from 'typeorm';
+import { BeforeInsert, Column, Entity, OneToMany, Unique } from 'typeorm';
 import { AbstractEntity } from '../database';
 import { Evaluation } from './evaluation.entity';
+import * as bcrypt from 'bcrypt';
 
 @Entity()
 @Unique(['email'])
 export class User extends AbstractEntity<User> {
-  @Column({ length: 255 })
+  @Column({ unique: true })
   email: string;
 
   @Column()
@@ -13,10 +14,10 @@ export class User extends AbstractEntity<User> {
 
   @Column({
     type: 'enum',
-    enum: ['Admin', 'User'],
-    default: 'User',
+    enum: ['admin', 'user'],
+    default: 'user',
   })
-  role: 'Admin' | 'User';
+  role: 'admin' | 'user';
 
   @OneToMany(() => Evaluation, (evaluation) => evaluation.user, {
     cascade: true,
@@ -28,4 +29,9 @@ export class User extends AbstractEntity<User> {
 
   @Column({ type: 'decimal', precision: 10, scale: 2, default: 5 })
   credits: number;
+
+  @BeforeInsert()
+  async hashPassword() {
+    this.password = await bcrypt.hash(this.password, 10);
+  }
 }
