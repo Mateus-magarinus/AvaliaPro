@@ -5,7 +5,6 @@ import { Property } from './property.entity';
 
 export enum AdType {
   SALE = 'Venda',
-  RENT = 'Aluguel',
 }
 
 @Entity()
@@ -19,8 +18,11 @@ export class Evaluation extends AbstractEntity<Evaluation> {
   @Column({ type: 'varchar', length: 255, nullable: true })
   propertyType: string;
 
-  @Column({ type: 'varchar', length: 255, nullable: true })
+  @Column({ type: 'varchar', length: 255 })
   city: string;
+
+  @Column({ type: 'varchar', length: 2, default: 'RS' })
+  state: string;
 
   @Column({ type: 'varchar', length: 255, nullable: true })
   neighborhood: string;

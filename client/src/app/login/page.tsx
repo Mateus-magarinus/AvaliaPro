@@ -14,12 +14,18 @@ export default function LoginPage() {
     setError("");
     setSuccess(false);
 
-    // Aqui você chamaria a rota de login real (ex.: /api/login) ou seu NestJS.
     try {
-      // Exemplo de simulação:
-      const response = { ok: true };
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL;
+
+      const response = await fetch(`${apiUrl}/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+      const data = await response.json();
+
       if (!response.ok) {
-        setError("Falha no login");
+        setError(data.error || "Falha no login");
       } else {
         setSuccess(true);
       }

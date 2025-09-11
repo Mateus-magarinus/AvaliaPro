@@ -10,6 +10,7 @@ import {
 import { RealEstateService } from './real-estate.service';
 import { HttpModule } from '@nestjs/axios';
 import { ConfigModule } from '@nestjs/config';
+import { RealEstateController } from './real-estate.controller';
 
 @Module({
   imports: [
@@ -22,6 +23,7 @@ import { ConfigModule } from '@nestjs/config';
     ]),
   ],
   providers: [RealEstateService, RealEstateRepository, RealEstateSyncTask],
+  controllers: [RealEstateController],
   exports: [RealEstateService],
 })
 export class RealEstateModule {}

@@ -11,7 +11,7 @@ export class RealEstateSyncTask {
   /**
    * Runs every hour to synchronize all real estate entries
    */
-  @Cron(CronExpression.EVERY_HOUR)
+  @Cron(CronExpression.EVERY_12_HOURS)
   async handleCron() {
     this.logger.log('Starting scheduled real-estate synchronization');
     try {
