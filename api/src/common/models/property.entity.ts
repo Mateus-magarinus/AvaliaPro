@@ -6,6 +6,7 @@ import { Evaluation } from './evaluation.entity';
 export class Property extends AbstractEntity<Property> {
   @ManyToOne(() => Evaluation, (evaluation) => evaluation.properties, {
     nullable: false,
+    onDelete: 'CASCADE',
   })
   evaluation: Evaluation;
 
