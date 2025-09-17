@@ -122,4 +122,31 @@ export class EvaluationsController {
     const userId = (req as any).user?.id;
     return this.service.confirm(id, String(userId));
   }
+
+  @Get(':id/search')
+  async preview(
+    @Req() req: Request,
+    @Param('id') id: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('sort') sort?: 'recency' | 'price',
+  ) {
+    const userId = (req as any).user?.id;
+    return this.service.previewComparables(id, String(userId), {
+      page: page ? Number(page) : undefined,
+      limit: limit ? Number(limit) : undefined,
+      sort,
+    });
+  }
+
+  // Anexar por IDs externos
+  @Post(':id/properties/by-ids')
+  async attachByIds(
+    @Req() req: Request,
+    @Param('id') id: string,
+    @Body() body: { ids: string[]; source?: string },
+  ) {
+    const userId = (req as any).user?.id;
+    return this.service.attachComparablesByIds(id, String(userId), body);
+  }
 }

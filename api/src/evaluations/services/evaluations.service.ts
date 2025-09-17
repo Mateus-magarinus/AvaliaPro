@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  Inject,
   Injectable,
   Logger,
   NotFoundException,
@@ -25,6 +26,11 @@ import {
   toInt,
   toNum,
 } from '../helpers';
+import {
+  REAL_ESTATE_SEARCH_PORT,
+  RealEstateItem,
+  RealEstateSearchPort,
+} from '../interfaces/evaluations.ports';
 
 // Se tiver o tipo exportado do módulo Mongo, importe-o.
 // Aqui deixo uma interface mínima com os campos usados.
@@ -61,6 +67,8 @@ export class EvaluationsService {
     private readonly repo: EvaluationsRepository,
     @InjectRepository(Property)
     private readonly propertyRepo: Repository<Property>,
+    @Inject(REAL_ESTATE_SEARCH_PORT)
+    private readonly realEstate: RealEstateSearchPort,
   ) {}
 
   /** Cria uma Evaluation “enxuta”, conforme tuas colunas atuais. */
@@ -246,6 +254,116 @@ export class EvaluationsService {
     };
   }
 
+  /** Preview de comparáveis direto do Real-Estate (não persiste) */
+  async previewComparables(
+    evaluationId: string,
+    userId: string,
+    q?: { page?: number; limit?: number; sort?: 'recency' | 'price' },
+  ) {
+    const ev = await this.getById(evaluationId, userId);
+
+    const filters = {
+      city: ev.city,
+      state: ev.state ?? undefined,
+      neighborhood: ev.neighborhood ?? undefined,
+      propertyType: ev.propertyType ?? undefined,
+      bedrooms: ev.bedrooms ?? undefined,
+      bathrooms: ev.bathrooms ?? undefined, // pode não filtrar na origem
+      garage: ev.garage ?? undefined, // idem
+      priceMin: ev.priceMin ?? undefined, // ver nota no adapter
+      priceMax: ev.priceMax ?? undefined,
+      areaMin: ev.areaMin ?? undefined,
+      areaMax: ev.areaMax ?? undefined,
+      adType: ev.adType ?? undefined,
+    };
+
+    const page = Math.max(1, Number(q?.page ?? 1));
+    const limit = Math.min(100, Math.max(1, Number(q?.limit ?? 20)));
+    const sort = q?.sort ?? 'recency';
+
+    return this.realEstate.search(filters, { page, limit, sort });
+  }
+
+  /** Anexa comparáveis por IDs externos vindos do Real-Estate */
+  async attachComparablesByIds(
+    evaluationId: string,
+    userId: string,
+    payload: { ids: string[]; source?: string },
+  ) {
+    if (!payload?.ids?.length) throw new BadRequestException('ids is required');
+    if (payload.ids.length > 200)
+      throw new BadRequestException('ids limit is 200');
+
+    const ev = await this.getById(evaluationId, userId);
+
+    // dedupe existente
+    const existing = await this.propertyRepo.find({
+      where: { evaluation: { id: ev.id } as any },
+      select: ['id', 'address', 'totalValue'],
+    });
+    const key = (addr?: string | null, val?: any) =>
+      `${(addr ?? '').toLowerCase()}::${Number.isFinite(Number(val)) ? Number(val).toFixed(2) : 'null'}`;
+    const keyset = new Set(existing.map((e) => key(e.address, e.totalValue)));
+
+    let added = 0;
+    for (const externalId of payload.ids) {
+      const item = await this.realEstate.getByExternalId(
+        externalId,
+        payload.source ?? 'mongo',
+      );
+      if (!item) continue;
+
+      const mapped = this.mapItemToProperty(item);
+      (mapped as any).evaluation = { id: ev.id } as any;
+
+      const k = key(mapped.address, mapped.totalValue);
+      if (keyset.has(k)) continue;
+
+      await this.propertyRepo.save(mapped as any);
+      keyset.add(k);
+      added++;
+    }
+
+    const total = await this.propertyRepo.count({
+      where: { evaluation: { id: ev.id } as any },
+    });
+    return { added, skipped: payload.ids.length - added, total };
+  }
+
+  // ---- mapper RealEstateItem -> Property (somente campos existentes em Property)
+  private mapItemToProperty(item: RealEstateItem): Partial<Property> {
+    const round2 = (n: number) => Math.round(n * 100) / 100;
+
+    const totalValue = Number.isFinite(item.price as any)
+      ? Number(item.price)
+      : null;
+    const totalArea = Number.isFinite(item.area as any)
+      ? Number(item.area)
+      : null;
+    const unitValue =
+      totalValue != null && totalArea != null && totalArea > 0
+        ? round2(totalValue / totalArea)
+        : null;
+
+    return {
+      city: item.city?.trim() ?? '',
+      neighborhood: item.neighborhood ?? null,
+      address: item.address ?? item.url ?? 'N/D',
+      latitude: item.lat ?? null,
+      longitude: item.lng ?? null,
+      ibgeIncome: null,
+      bedrooms: item.bedrooms ?? null,
+      bathrooms: item.bathrooms ?? null,
+      garageSpots: item.garage ?? null,
+      totalArea,
+      totalValue,
+      unitValue,
+      contactLink: item.url ?? null,
+      contactPhone: null,
+      description: item.title ?? null,
+      images: item.images?.length ? item.images : null,
+    } as Partial<Property>;
+  }
   // ----------------- helpers -----------------
 
   private mapDocToProperty(doc: RealEstateDoc): Partial<Property> {
