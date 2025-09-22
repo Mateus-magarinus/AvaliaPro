@@ -30,10 +30,9 @@ import {
   REAL_ESTATE_SEARCH_PORT,
   RealEstateItem,
   RealEstateSearchPort,
+  RealEstateSort,
 } from '../interfaces/evaluations.ports';
 
-// Se tiver o tipo exportado do módulo Mongo, importe-o.
-// Aqui deixo uma interface mínima com os campos usados.
 type RealEstateDoc = {
   ID: number;
   Cidade?: string;
@@ -58,6 +57,8 @@ type RealEstateDoc = {
     Foto_Pequena?: string;
   }[];
 };
+
+type UiSort = 'recency' | 'price' | RealEstateSort;
 
 @Injectable()
 export class EvaluationsService {
@@ -258,7 +259,7 @@ export class EvaluationsService {
   async previewComparables(
     evaluationId: string,
     userId: string,
-    q?: { page?: number; limit?: number; sort?: 'recency' | 'price' },
+    q?: { page?: number; limit?: number; sort?: UiSort },
   ) {
     const ev = await this.getById(evaluationId, userId);
 
@@ -268,9 +269,9 @@ export class EvaluationsService {
       neighborhood: ev.neighborhood ?? undefined,
       propertyType: ev.propertyType ?? undefined,
       bedrooms: ev.bedrooms ?? undefined,
-      bathrooms: ev.bathrooms ?? undefined, // pode não filtrar na origem
-      garage: ev.garage ?? undefined, // idem
-      priceMin: ev.priceMin ?? undefined, // ver nota no adapter
+      bathrooms: ev.bathrooms ?? undefined,
+      garage: ev.garage ?? undefined,
+      priceMin: ev.priceMin ?? undefined,
       priceMax: ev.priceMax ?? undefined,
       areaMin: ev.areaMin ?? undefined,
       areaMax: ev.areaMax ?? undefined,
@@ -279,7 +280,16 @@ export class EvaluationsService {
 
     const page = Math.max(1, Number(q?.page ?? 1));
     const limit = Math.min(100, Math.max(1, Number(q?.limit ?? 20)));
-    const sort = q?.sort ?? 'recency';
+
+    const uiToDomain: Record<UiSort, RealEstateSort> = {
+      recency: 'recent',
+      price: 'price_desc',
+      recent: 'recent',
+      price_asc: 'price_asc',
+      price_desc: 'price_desc',
+    };
+
+    const sort: RealEstateSort = q?.sort ? uiToDomain[q.sort] : 'recent';
 
     return this.realEstate.search(filters, { page, limit, sort });
   }

@@ -1,172 +1,130 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { HttpService } from '@nestjs/axios';
-import { firstValueFrom } from 'rxjs';
+import { Cron } from '@nestjs/schedule';
 import { ConfigService } from '@nestjs/config';
+
 import { RealEstateRepository } from './real-estate.repository';
-import { RealEstateDocument } from '@common/models';
+import { ColigadasClient } from './providers/coligadas/coligadas.client';
+import { ColigadasMapper } from './providers/coligadas/coligadas.mapper';
 
 @Injectable()
 export class RealEstateService {
   private readonly logger = new Logger(RealEstateService.name);
-  private readonly baseListUrl: string;
-  private readonly baseDetailUrl: string;
+  private readonly CONCURRENCY: number;
 
   constructor(
-    private readonly http: HttpService,
-    private readonly config: ConfigService,
     private readonly repository: RealEstateRepository,
+    private readonly coligadas: ColigadasClient,
+    private readonly mapper: ColigadasMapper,
+    private readonly config: ConfigService,
   ) {
-    // Configurable endpoints via environment variables
-    this.baseListUrl = this.config.get<string>('API_IMOVEIS_LIST');
-    this.baseDetailUrl = this.config.get<string>('API_IMOVEL_DETAIL');
+    // Permite ajustar a concorrência via env se quiser (padrão 6)
+    this.CONCURRENCY = Number(
+      this.config.get('API_COLIGADAS_CONCURRENCY') ?? 6,
+    );
   }
 
   /**
-   * Fetch all pages from the listing endpoint and gather IDs
+   * Cron diário às 04:00 para sincronizar Coligadas
    */
-  private async fetchAllIds(): Promise<number[]> {
-    const ids: number[] = [];
-    let nextPage: number | null = 1;
+  @Cron('0 4 * * *')
+  async syncColigadasDaily() {
+    this.logger.log('Iniciando sync diário da Coligadas…');
+    const result = await this.syncColigadas();
+    this.logger.log(
+      `Sync diário concluído: upserts=${result.upserts} deleted=${result.deleted} errors=${result.errors}`,
+    );
+  }
 
-    while (nextPage) {
-      const url = `${this.baseListUrl}&page=${nextPage}`;
-      this.logger.log(`Fetching property list page ${nextPage}`);
-      const response = await firstValueFrom(this.http.get(url));
-      const payload = response.data;
+  /**
+   * Sincroniza tudo da Coligadas (listar IDs -> buscar detalhes -> upsert -> purge)
+   * Pode ser chamado via controller/endpoint manual.
+   */
+  async syncColigadas(): Promise<{
+    upserts: number;
+    deleted: number;
+    errors: number;
+  }> {
+    this.logger.log('Sincronização Coligadas: iniciando');
 
-      // Extract IDs from current page
-      payload.data.forEach((item: any) => ids.push(item.ID));
-
-      // Determine next page or end
-      nextPage = payload.links.next
-        ? parseInt(new URL(payload.links.next).searchParams.get('page'), 10)
-        : null;
+    // 1) IDs
+    let ids: number[] = [];
+    try {
+      ids = await this.coligadas.fetchAllIds();
+      this.logger.log(`Coligadas: ${ids.length} IDs encontrados`);
+    } catch (err) {
+      this.logger.error(
+        'Falha ao buscar lista de IDs da Coligadas',
+        err as any,
+      );
+      return { upserts: 0, deleted: 0, errors: 1 };
     }
 
-    return ids;
-  }
+    // 2) Detalhes + upsert em lotes com concorrência controlada
+    let upserts = 0;
+    let errors = 0;
 
-  /**
-   * Fetch detail for a specific property and map to repository schema
-   */
-  private async fetchDetail(id: number): Promise<Partial<RealEstateDocument>> {
-    const url = `${this.baseDetailUrl}/${id}?pgimovel=1&interno=0&idimob=1&rede=1`;
-    this.logger.debug(`Fetching details for property ID ${id}`);
-    const response = await firstValueFrom(this.http.get(url));
-    const raw = response.data.data;
+    for (let i = 0; i < ids.length; i += this.CONCURRENCY) {
+      const slice = ids.slice(i, i + this.CONCURRENCY);
 
-    // Map raw response fields to RealEstateDocument schema
-    const mapped: Partial<RealEstateDocument> = {
-      ID: raw.ID,
-      Idimob: raw.Idimob,
-      Imobiliaria: raw.Imobiliaria,
-      CelularImob: raw.CelularImob,
-      CelularImob2: raw.CelularImob2,
-      IdCondominio: raw.IdCondominio,
-      Categoria: raw.Categoria,
-      Codigo: raw.Codigo,
-      Agenciador: raw.Agenciador,
-      Nome: raw.Nome,
-      Anuncio: raw.Anuncio,
-      URL: raw.URL,
-      SEOTitulo: raw.SEOTitulo,
-      SEODescricao: raw.SEODescricao,
-      SEOKeywords: raw.SEOKeywords,
-      Status: raw.Status,
-      Link: raw.Link,
-      Endereco: raw.Endereco,
-      Numero: raw.Numero,
-      Unidade: raw.Unidade,
-      Complemento: raw.Complemento,
-      PontoReferencia: raw.PontoReferencia,
-      Bairro: raw.Bairro,
-      Cidade: raw.Cidade,
-      UF: raw.UF,
-      Latitude: raw.Latitude,
-      Longitude: raw.Longitude,
-      MostrarMapa: raw.MostrarMapa,
-      EnderecoRestrito: raw.EnderecoRestrito,
-      Perfil: raw.Perfil,
-      Mobilia: raw.Mobilia,
-      PalavraDestaque: raw.PalavraDestaque,
-      ValorDe: raw.ValorDe,
-      ValorRestrito: raw.ValorRestrito,
-      ValorCondominio: raw.ValorCondominio,
-      ValorIPTU: raw.ValorIPTU,
-      ValorIPTUTipo: raw.ValorIPTUTipo,
-      Financiamento: raw.Financiamento,
-      Exclusividade: raw.Exclusividade,
-      DataCadastro: raw.DataCadastro,
-      DataPublicacao: raw.DataPublicacao,
-      DataEntrega: raw.DataEntrega,
-      AnoConclusao: raw.AnoConclusao,
-      Situacao: raw.Situacao,
-      Especial: raw.Especial,
-      AceitaPet: raw.AceitaPet === 'Aceita Pet',
-      AltoPadrao: raw.AltoPadrao,
-      Investidor: raw.Investidor,
-      Garagem: raw.Garagem,
-      Suites: raw.Suites,
-      DemiSuite: raw.DemiSuite,
-      SuiteMaster: raw.SuiteMaster,
-      Banheiros: raw.Banheiros,
-      Lavabos: raw.Lavabos,
-      Tipo: raw.Tipo,
-      Video: this.parseVideo(raw.Video),
-      TourVirtual: this.parseVideo(raw.TourVirtual),
-      Showroom: raw.Showroom,
-      DependenciaEmpregada: raw.DependenciaEmpregada,
-      AreaLazer: raw.AreaLazer,
-      Piscina: raw.Piscina,
-      Churrasqueira: raw.Churrasqueira,
-      Sacada: raw.Sacada,
-      Terraco: raw.Terraco,
-      Elevador: raw.Elevador,
-      Capacidade: raw.Capacidade,
-      DistanciaMar: raw.DistanciaMar,
-      ItensTemporada: raw.ItensTemporada,
-      ReservasTemporada: raw.ReservasTemporada,
-      Descricao: raw.Descricao,
-      Fotos: raw.Fotos?.Apresentacao ?? [],
-      Caracteristicas: raw.Caracteristicas,
-    };
+      // 2.1) Buscar detalhes em paralelo
+      const results = await Promise.allSettled(
+        slice.map((id) => this.coligadas.fetchDetail(id)),
+      );
 
-    return mapped;
-  }
-
-  /**
-   * Synchronize all properties: fetch IDs, fetch details, and upsert into DB
-   */
-  async syncAll(): Promise<void> {
-    this.logger.log('Starting properties synchronization');
-
-    const ids = await this.fetchAllIds();
-    this.logger.log(`Found ${ids.length} property IDs`);
-
-    for (const id of ids) {
-      try {
-        const data = await this.fetchDetail(id);
-        await this.repository.findOneAndUpsert({ ID: id }, { $set: data });
-        this.logger.debug(`Synchronized property ID ${id}`);
-      } catch (error) {
-        this.logger.error(
-          `Failed to synchronize property ID ${id}`,
-          error.stack,
+      // 2.2) Mapear e upsert dos que vieram OK
+      const fulfilled = results
+        .map((r, idx) => ({ r, id: slice[idx] }))
+        .filter(
+          (x) =>
+            x.r.status === 'fulfilled' &&
+            (x.r as PromiseFulfilledResult<any>).value,
         );
-      }
+
+      // erros de fetch
+      errors += results.filter((x) => x.status === 'rejected').length;
+
+      // 2.3) Upserts (mantém paralelismo dentro do lote)
+      await Promise.all(
+        fulfilled.map(async ({ r }) => {
+          const raw = (r as PromiseFulfilledResult<any>).value;
+          const doc = this.mapper.toRealEstateDoc(raw);
+          try {
+            await this.repository.findOneAndUpsert(
+              { ID: doc.ID, source: 'coligadas' } as any,
+              { $set: doc } as any,
+            );
+            upserts += 1;
+          } catch (e) {
+            errors += 1;
+            this.logger.warn(`Falha no upsert ID=${doc.ID}: ${e}`);
+          }
+        }),
+      );
     }
 
-    this.logger.log('Properties synchronization completed');
+    // 3) Purge: remove imóveis da Coligadas que não estão mais presentes
+    const deleted = await this.purgeMissingFromColigadas(ids);
+
+    const summary = { upserts, deleted, errors };
+    this.logger.log(
+      `Sincronização Coligadas: concluída => upserts=${upserts} deleted=${deleted} errors=${errors}`,
+    );
+    return summary;
   }
 
-  private parseVideo(rawVideo: any): string {
-    if (Array.isArray(rawVideo) && rawVideo.length > 0) {
-      const first = rawVideo[0];
-      return typeof first.Video === 'string' ? first.Video : '';
+  /**
+   * Remove documentos da fonte 'coligadas' cujos IDs não estão mais na API
+   */
+  private async purgeMissingFromColigadas(validIds: number[]): Promise<number> {
+    try {
+      const res: any = await this.repository.deleteMany({
+        source: 'coligadas',
+        ID: { $nin: validIds },
+      } as any);
+      return res?.deletedCount ?? 0;
+    } catch (e) {
+      this.logger.warn(`Falha ao remover itens obsoletos da Coligadas: ${e}`);
+      return 0;
     }
-    if (typeof rawVideo === 'string') {
-      return rawVideo;
-    }
-    return '';
   }
 }

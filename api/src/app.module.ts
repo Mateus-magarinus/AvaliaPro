@@ -14,6 +14,7 @@ import { PropertyModule } from './property/property.module';
       isGlobal: true,
       validationSchema: Joi.object({
         HTTP_PORT: Joi.number().required(),
+
         DATABASE_HOST: Joi.string().required(),
         DATABASE_PORT: Joi.number().required(),
         DATABASE_USER: Joi.string().required(),
@@ -21,12 +22,18 @@ import { PropertyModule } from './property/property.module';
         DATABASE_NAME: Joi.string().required(),
         DATABASE_SYNC: Joi.boolean().required(),
         DATABASE_LOGGING: Joi.boolean().required(),
-        MONGODB_URI: Joi.string().required(),
+
+        MONGODB_URI: Joi.string().uri().required(),
+
         JWT_SECRET: Joi.string().required(),
         JWT_EXPIRATION: Joi.string().required(),
+
         API_IMOVEIS_LIST: Joi.string().required(),
         API_IMOVEL_DETAIL: Joi.string().required(),
+
+        API_COLIGADAS_TIMEOUT_MS: Joi.number().default(10000),
       }),
+      validationOptions: { abortEarly: false },
     }),
     DatabaseModule,
     UsersModule,

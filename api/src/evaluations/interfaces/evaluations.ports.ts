@@ -9,20 +9,33 @@ export type EvaluationStatus =
   | 'completed'
   | 'archived';
 
+export type RealEstateSort = 'recent' | 'price_asc' | 'price_desc';
+
+export interface SearchOptions {
+  page?: number; // default 1
+  limit?: number; // default 20 (cap 100)
+  sort?: RealEstateSort; // default 'recent'
+}
+
 export interface RealEstateSearchPort {
   search(
     filters: RealEstateSearchFilters,
-    opts: { page: number; limit: number; sort?: string },
+    opts?: SearchOptions,
   ): Promise<{
     items: RealEstateItem[];
     total: number;
     page: number;
     limit: number;
   }>;
+
+  // 'source' opcional: quando não informado, retorna da fonte do doc
   getByExternalId(
     externalId: string,
-    source: string,
+    source?: string,
   ): Promise<RealEstateItem | null>;
+
+  // opcional: útil para endpoints de contagem sem listar itens
+  count?(filters: RealEstateSearchFilters): Promise<{ total: number }>;
 }
 
 export interface RealEstateSearchFilters {

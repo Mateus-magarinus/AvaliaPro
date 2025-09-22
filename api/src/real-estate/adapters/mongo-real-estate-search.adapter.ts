@@ -15,11 +15,11 @@ function num(v: any): number | null {
   return Number.isFinite(n) ? n : null;
 }
 function int(v: any): number | null {
-  const n = parseInt(String(v ?? ''), 10);
+  const n = parseInt(String(v ?? '').trim(), 10);
   return Number.isFinite(n) ? n : null;
 }
-function coord(v?: string): number | null {
-  const n = v ? Number(v) : NaN;
+function coord(v?: string | number): number | null {
+  const n = typeof v === 'number' ? v : v ? Number(v) : NaN;
   return Number.isFinite(n) ? Number(n.toFixed(6)) : null;
 }
 
@@ -29,26 +29,39 @@ function mapDocToItem(doc: any): RealEstateItem {
         Number.isFinite(n as any),
       ) ?? null)
     : null;
+
   const priceFromTipos = Array.isArray(doc.Tipo)
     ? (doc.Tipo.map((t: any) => num(t?.Valor)).find((n: number | null) =>
         Number.isFinite(n as any),
       ) ?? null)
     : null;
 
-  const price = num(doc.ValorDe) ?? priceFromTipos ?? null;
+  // preferir campo normalizado
+  const price =
+    (typeof doc.Preco === 'number' ? doc.Preco : null) ??
+    num(doc.ValorDe) ??
+    priceFromTipos ??
+    null;
 
   const address = [doc.Endereco?.trim(), doc.Numero?.trim()]
     .filter(Boolean)
     .join(', ');
+
   const images = Array.isArray(doc.Fotos)
     ? doc.Fotos.map(
         (f: any) => f.Foto_Grande || f.Foto_Media || f.Foto_Pequena,
       ).filter(Boolean)
     : [];
 
+  const area =
+    (typeof doc.AreaEscolhida === 'number' ? doc.AreaEscolhida : null) ??
+    (typeof doc.AreaPrivativa === 'number' ? doc.AreaPrivativa : null) ??
+    (typeof doc.AreaTotal === 'number' ? doc.AreaTotal : null) ??
+    null;
+
   return {
     externalId: String(doc.ID),
-    source: 'mongo',
+    source: doc.Fonte ?? 'coligadas', // vem do mapeador; evita "mongo"
     title: doc.Nome ?? doc.Anuncio ?? null,
     address: address || null,
     city: doc.Cidade ?? '',
@@ -60,13 +73,15 @@ function mapDocToItem(doc: any): RealEstateItem {
     bedrooms: bedroomsFromTipos,
     bathrooms: int(doc.Banheiros),
     garage: int(doc.Garagem),
-    area: null, // origem inconsistente
+    area,
     price,
     url: doc.URL ?? doc.Link ?? null,
     images,
-    raw: { ID: doc.ID }, // enxuto (podemos expandir depois)
+    raw: { ID: doc.ID },
   };
 }
+
+type SortKey = 'recent' | 'price_asc' | 'price_desc';
 
 @Injectable()
 export class MongoRealEstateSearchAdapter implements RealEstateSearchPort {
@@ -77,30 +92,57 @@ export class MongoRealEstateSearchAdapter implements RealEstateSearchPort {
     private readonly model: Model<RealEstateDocument>,
   ) {}
 
+  private ciEq(value?: string) {
+    if (!value) return undefined;
+    return new RegExp(`^${value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i');
+  }
+
+  private buildQuery(filters: RealEstateSearchFilters): FilterQuery<any> {
+    const q: FilterQuery<any> = {};
+
+    if (filters.city) q.Cidade = this.ciEq(filters.city);
+    if (filters.state) q.UF = this.ciEq(filters.state);
+    if (filters.neighborhood) q.Bairro = this.ciEq(filters.neighborhood);
+    if (filters.propertyType) q.Categoria = this.ciEq(filters.propertyType);
+    if (Number.isFinite(filters.bedrooms as any))
+      q['Tipo.Dormitorios'] = Number(filters.bedrooms);
+
+    // preço normalizado
+    const min = Number(filters.minPrice ?? NaN);
+    const max = Number(filters.maxPrice ?? NaN);
+    if (Number.isFinite(min) || Number.isFinite(max)) {
+      q.Preco = {};
+      if (Number.isFinite(min)) (q.Preco as any).$gte = min;
+      if (Number.isFinite(max)) (q.Preco as any).$lte = max;
+    }
+
+    // filtro por fonte (se vier)
+    if ((filters as any).source) q.Fonte = this.ciEq((filters as any).source);
+
+    return q;
+  }
+
   async search(
     filters: RealEstateSearchFilters,
-    opts: { page: number; limit: number; sort?: string },
+    opts: { page?: number; limit?: number; sort?: SortKey } = {},
   ) {
-    const page = Math.max(1, Number(opts?.page ?? 1));
-    const limit = Math.min(100, Math.max(1, Number(opts?.limit ?? 20)));
+    const page = Math.max(1, Number(opts.page ?? 1));
+    const limit = Math.min(100, Math.max(1, Number(opts.limit ?? 20)));
 
-    const q: FilterQuery<any> = {};
-    if (filters.city) q.Cidade = filters.city;
-    if (filters.state) q.UF = filters.state;
-    if (filters.neighborhood) q.Bairro = filters.neighborhood;
-    if (filters.propertyType) q.Categoria = filters.propertyType;
-    if (Number.isFinite(filters.bedrooms as any))
-      q['Tipo.Dormitorios'] = filters.bedrooms;
-
-    // sort — priorizar data de publicação desc como padrão
+    const q = this.buildQuery(filters);
     const sort: any = {};
-    switch ((opts?.sort ?? '').toLowerCase()) {
-      case 'price':
-        // OBS: preço é string na origem; ordenação numérica real exigiria campo normalizado.
+    switch (opts?.sort) {
+      case 'price_asc':
+        // OBS: se ValorDe for string, esta ordenação é “lexicográfica”.
+        // Para 100% correto, normalize preço em um campo numérico na gravação (ex.: PrecoNum).
+        sort.ValorDe = 1;
+        break;
+      case 'price_desc':
         sort.ValorDe = -1;
         break;
-      case 'recency':
+      case 'recent':
       default:
+        // use o campo que você tiver: DataPublicacaoISO, DataPublicacao, etc.
         sort.DataPublicacao = -1;
         break;
     }
@@ -120,11 +162,24 @@ export class MongoRealEstateSearchAdapter implements RealEstateSearchPort {
     return { items, total, page, limit };
   }
 
-  async getByExternalId(externalId: string, source: string) {
+  async count(filters: RealEstateSearchFilters) {
+    const q = this.buildQuery(filters);
+    const total = await this.model.countDocuments(q);
+    return { total };
+  }
+
+  async getByExternalId(externalId: string, source?: string) {
     const idNum = Number(externalId);
-    const doc = await this.model.findOne({ ID: idNum }).lean().exec();
+    if (!Number.isFinite(idNum)) return null;
+
+    const q: FilterQuery<any> = { ID: idNum };
+    if (source) q.Fonte = this.ciEq(source);
+
+    const doc = await this.model.findOne(q).lean().exec();
     if (!doc) return null;
+
     const item = mapDocToItem(doc);
-    return { ...item, source: source || item.source };
+    // força a fonte quando explicitamente pedida
+    return source ? { ...item, source } : item;
   }
 }

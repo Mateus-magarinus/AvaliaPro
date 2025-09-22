@@ -1,12 +1,12 @@
-import { Controller, Get } from '@nestjs/common';
+import { Controller, Post } from '@nestjs/common';
 import { RealEstateService } from './real-estate.service';
 
 @Controller('real-estate')
 export class RealEstateController {
   constructor(private readonly realEstateService: RealEstateService) {}
 
-  @Get('sync')
-  async syncAll() {
-    return this.realEstateService.syncAll();
+  @Post('sync/coligadas')
+  async syncColigadas() {
+    return this.realEstateService.syncColigadas();
   }
 }

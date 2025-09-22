@@ -6,6 +6,9 @@ export class RealEstateDocument extends MongoAbstractDocument {
   @Prop({ required: true })
   ID: number;
 
+  @Prop({ required: true, enum: ['coligadas'] })
+  source: 'coligadas';
+
   @Prop()
   Idimob: number;
 
@@ -248,3 +251,10 @@ export class RealEstateDocument extends MongoAbstractDocument {
 
 export const RealEstateSchema =
   SchemaFactory.createForClass(RealEstateDocument);
+
+RealEstateSchema.index({ ID: 1, source: 1 }, { unique: true });
+RealEstateSchema.index({ Cidade: 1 });
+RealEstateSchema.index({ Bairro: 1 });
+RealEstateSchema.index({ 'Tipo.Dormitorios': 1 });
+RealEstateSchema.index({ Preco: 1 });
+RealEstateSchema.index({ DataPublicacaoISO: -1 });
