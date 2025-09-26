@@ -43,6 +43,8 @@ export interface RealEstateSearchFilters {
   state?: string;
   neighborhood?: string;
   propertyType?: string;
+  type?: string;
+  types?: string[];
   bedrooms?: number;
   bathrooms?: number;
   garage?: number;
@@ -51,7 +53,9 @@ export interface RealEstateSearchFilters {
   areaMin?: number;
   areaMax?: number;
   adType?: AdType;
-  // extensível
+
+  q?: string;
+
   [key: string]: any;
 }
 

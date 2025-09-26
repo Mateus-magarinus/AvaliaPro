@@ -12,6 +12,15 @@ export class Evaluation extends AbstractEntity<Evaluation> {
   @ManyToOne(() => User, (user) => user.evaluations, { eager: true })
   user: User;
 
+  @Column({ type: 'jsonb', nullable: true, default: {} })
+  filters: Record<string, any>;
+
+  @Column({ type: 'text', nullable: true })
+  description: string;
+
+  @Column({ type: 'varchar', length: 20, default: 'draft' })
+  status: 'draft' | 'confirmed' | 'archived';
+
   @Column({ type: 'varchar', length: 255 })
   name: string;
 

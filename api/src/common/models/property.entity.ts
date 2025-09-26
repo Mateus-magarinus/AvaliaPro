@@ -13,8 +13,8 @@ export class Property extends AbstractEntity<Property> {
   @Column({ type: 'varchar', length: 255 })
   city: string;
 
-  @Column({ type: 'varchar', length: 255 })
-  neighborhood: string;
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  neighborhood: string | null;
 
   @Column({ type: 'varchar', length: 255 })
   address: string;

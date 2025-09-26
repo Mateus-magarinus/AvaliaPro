@@ -68,7 +68,6 @@ export class ColigadasClient {
   async fetchDetail(id: number): Promise<any> {
     const url = this.buildDetailUrl(id);
     const resp = await firstValueFrom(this.http.get(url));
-    // alguns endpoints retornam { data: {...} }, outros já retornam o objeto
     return resp.data?.data ?? resp.data;
   }
 }

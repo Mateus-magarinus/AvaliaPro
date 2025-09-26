@@ -3,108 +3,91 @@ import {
   Controller,
   Delete,
   Get,
-  HttpCode,
-  HttpStatus,
   Param,
+  ParseIntPipe,
   Patch,
   Post,
   Query,
-  Req,
   UseGuards,
 } from '@nestjs/common';
-import { Request } from 'express';
-import { AuthGuard } from '@nestjs/passport';
+import { JwtAuthGuard, CurrentUser } from '@common';
 import { CreatePropertyDto } from './dto/create-property.dto';
 import { UpdatePropertyDto } from './dto/update-property.dto';
 import { PropertyService } from './services/property.service';
 
-@UseGuards(AuthGuard('jwt'))
+@UseGuards(JwtAuthGuard)
 @Controller('properties')
 export class PropertyController {
-  constructor(private readonly service: PropertyService) {}
+  constructor(private readonly service: PropertyService) { }
 
   @Post()
-  async create(@Req() req: Request, @Body() dto: CreatePropertyDto) {
-    const userId = (req as any).user?.id;
-    return this.service.createOne(String(userId), dto);
+  async create(
+    @Body() dto: CreatePropertyDto,
+    @CurrentUser() user: any,
+  ) {
+    const userId = user?.id ?? user?.userId ?? user?.sub;
+    const { evaluationId, ...data } = dto as any;
+    return this.service.createManual(String(userId), String(evaluationId), data);
   }
 
   @Get(':id')
-  async getOne(@Req() req: Request, @Param('id') id: string) {
-    const userId = (req as any).user?.id;
-    return this.service.getOne(id, String(userId));
+  async getOne(
+    @Param('id', ParseIntPipe) id: number,
+    @CurrentUser() user: any,
+  ) {
+    const userId = user?.id ?? user?.userId ?? user?.sub;
+    return this.service.getOwned(String(userId), id);
   }
 
   @Patch(':id')
   async update(
-    @Req() req: Request,
-    @Param('id') id: string,
+    @Param('id', ParseIntPipe) id: number,
     @Body() dto: UpdatePropertyDto,
+    @CurrentUser() user: any,
   ) {
-    const userId = (req as any).user?.id;
-    return this.service.updateOne(id, String(userId), dto);
+    const userId = user?.id ?? user?.userId ?? user?.sub;
+    return this.service.updateOwned(String(userId), id, dto as any);
   }
 
   @Delete(':id')
-  @HttpCode(HttpStatus.NO_CONTENT)
-  async remove(@Req() req: Request, @Param('id') id: string) {
-    const userId = (req as any).user?.id;
-    await this.service.deleteOne(id, String(userId));
+  async remove(
+    @Param('id', ParseIntPipe) id: number,
+    @CurrentUser() user: any,
+  ) {
+    const userId = user?.id ?? user?.userId ?? user?.sub;
+    await this.service.deleteOwned(String(userId), id);
+    return { ok: true };
   }
 
-  // LISTA (evaluationId obrigatório; filtros opcionais)
   @Get()
   async list(
-    @Req() req: Request,
+    @CurrentUser() user: any,
     @Query('evaluationId') evaluationId: string,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
-    @Query('sort')
-    sort?: 'totalValue' | 'totalArea' | 'unitValue' | 'bedrooms' | 'bathrooms',
-    @Query('order') order?: 'asc' | 'desc',
-    @Query('city') city?: string,
-    @Query('neighborhood') neighborhood?: string,
-    @Query('bedrooms') bedrooms?: string,
-    @Query('bathrooms') bathrooms?: string,
-    @Query('garageSpots') garageSpots?: string,
-    @Query('totalValueMin') totalValueMin?: string,
-    @Query('totalValueMax') totalValueMax?: string,
-    @Query('totalAreaMin') totalAreaMin?: string,
-    @Query('totalAreaMax') totalAreaMax?: string,
-    @Query('unitValueMin') unitValueMin?: string,
-    @Query('unitValueMax') unitValueMax?: string,
   ) {
-    const userId = (req as any).user?.id;
-    return this.service.list(String(userId), {
-      evaluationId,
+    const userId = user?.id ?? user?.userId ?? user?.sub;
+    return this.service.listByEvaluation(String(userId), String(evaluationId), {
       page: page ? Number(page) : undefined,
       limit: limit ? Number(limit) : undefined,
-      sort,
-      order,
-      city,
-      neighborhood,
-      bedrooms: bedrooms ? Number(bedrooms) : undefined,
-      bathrooms: bathrooms ? Number(bathrooms) : undefined,
-      garageSpots: garageSpots ? Number(garageSpots) : undefined,
-      totalValueMin: totalValueMin ? Number(totalValueMin) : undefined,
-      totalValueMax: totalValueMax ? Number(totalValueMax) : undefined,
-      totalAreaMin: totalAreaMin ? Number(totalAreaMin) : undefined,
-      totalAreaMax: totalAreaMax ? Number(totalAreaMax) : undefined,
-      unitValueMin: unitValueMin ? Number(unitValueMin) : undefined,
-      unitValueMax: unitValueMax ? Number(unitValueMax) : undefined,
     });
   }
 
-  // util: recalcular unitValue ausente
-  @Post('recalc')
-  async recalc(
-    @Req() req: Request,
-    @Query('evaluationId') evaluationId: string,
+  @Post(':id/recalc')
+  async recalcOne(
+    @Param('id', ParseIntPipe) id: number,
+    @CurrentUser() user: any,
   ) {
-    const userId = (req as any).user?.id;
-    return this.service.recalcUnitValuesForEvaluation(
-      evaluationId,
-      String(userId),
-    );
+    const userId = user?.id ?? user?.userId ?? user?.sub;
+    return this.service.recalcUnitValueForProperty(String(userId), id);
+  }
+
+  @Post('recalc')
+  async recalcAll(
+    @Query('evaluationId') evaluationId: string,
+    @CurrentUser() user: any,
+  ) {
+    const userId = user?.id ?? user?.userId ?? user?.sub;
+    return this.service.recalcUnitValuesForEvaluation(String(userId), String(evaluationId));
   }
 }

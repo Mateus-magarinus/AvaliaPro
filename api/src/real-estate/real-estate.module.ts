@@ -1,4 +1,6 @@
 import { Module } from '@nestjs/common';
+import * as http from 'http';
+import * as https from 'https';
 import { ScheduleModule } from '@nestjs/schedule';
 import { RealEstateRepository } from './real-estate.repository';
 import {
@@ -18,10 +20,20 @@ import { ColigadasClient } from './providers/coligadas/coligadas.client';
 @Module({
   imports: [
     HttpModule.registerAsync({
-      useFactory: (cfg: ConfigService) => ({
-        timeout: cfg.get<number>('API_COLIGADAS_TIMEOUT_MS') ?? 10000,
-        maxRedirects: 5,
-      }),
+      useFactory: (cfg: ConfigService) => {
+        const ms = Number(cfg.get<number>('API_COLIGADAS_TIMEOUT_MS'));
+        const timeout = Number.isFinite(ms) ? ms : 0;
+        return {
+          timeout,
+          maxRedirects: 5,
+          maxBodyLength: Infinity,
+          maxContentLength: Infinity,
+          decompress: true,
+          httpAgent: new http.Agent({ keepAlive: true, maxSockets: 50 }),
+          httpsAgent: new https.Agent({ keepAlive: true, maxSockets: 50 }),
+        };
+
+      },
       inject: [ConfigService],
     }),
     ConfigModule,
@@ -44,4 +56,4 @@ import { ColigadasClient } from './providers/coligadas/coligadas.client';
   controllers: [RealEstateController],
   exports: [RealEstateService, REAL_ESTATE_SEARCH_PORT],
 })
-export class RealEstateModule {}
+export class RealEstateModule { }
