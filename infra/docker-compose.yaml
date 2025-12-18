@@ -20,19 +20,27 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
-  # client:
-  #   build:
-  #     context: ../client
-  #     dockerfile: ../client/Dockerfile
-  #     target: development
-  #   command: npm run dev
-  #   env_file:
-  #     - ../client/.env
-  #   ports:
-  #     - "4000:3000"
-  #   volumes:
-  #     - ../client:/usr/src/app
-  #     - /usr/src/app/node_modules
+  client:
+    build:
+      context: ../client
+      dockerfile: ../client/Dockerfile
+      target: development          
+    command: npm run dev
+    env_file:
+      - ../client/.env
+    environment:
+      NODE_ENV: development
+      WATCHPACK_POLLING: "true"
+      CHOKIDAR_USEPOLLING: "1"
+    ports:
+      - "4000:3000"                # http://localhost:4000
+    volumes:
+      - ../client:/usr/src/app
+      - /usr/src/app/node_modules
+    depends_on:
+      api:
+        condition: service_started
+    restart: unless-stopped
 
   postgres:
     image: postgres:15-alpine

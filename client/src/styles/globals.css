@@ -1,13 +1,42 @@
 @import "tailwindcss";
 
-body {
-  margin: 0;
-  padding: 0;
+/* Base mínima do app */
+@layer base {
+  :root {
+    /* dá pra ajustar a paleta depois */
+    --brand: 14 58 102;
+    /* azul marinho */
+  }
+
+  html,
+  body {
+    @apply h-full bg-white text-slate-900 antialiased;
+  }
 }
 
-/* stylelint-disable-next-line at-rule-no-unknown */
-@theme {
-  --color-brand-dark: #051d40;
-  --color-brand-light: #b1d4e0;
-  --font-corbel: Corbel, sans-serif;
+/* Componentes utilitários usados no wizard */
+@layer components {
+  .Input {
+    @apply w-full rounded-xl border border-slate-300 bg-white px-4 py-3 shadow-sm focus:outline-none focus:ring-2 focus:ring-slate-900;
+  }
+
+  .BtnPrimary {
+    @apply inline-flex items-center rounded-full bg-slate-900 px-5 py-2.5 text-white hover:bg-slate-800 transition;
+  }
+
+  .BtnSecondary {
+    @apply inline-flex items-center rounded-full border border-slate-300 bg-white px-5 py-2.5 text-slate-800 hover:bg-slate-50 transition;
+  }
+
+  .Card {
+    @apply rounded-2xl border border-slate-200 bg-slate-50 shadow-sm;
+  }
+
+  .SectionTitle {
+    @apply text-xl sm:text-2xl font-semibold text-center;
+  }
+
+  .Muted {
+    @apply text-sm text-slate-600;
+  }
 }

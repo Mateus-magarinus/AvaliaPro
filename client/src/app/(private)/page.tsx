@@ -2,8 +2,6 @@
 
 import React, { useMemo, useState } from "react";
 import { Menu, ChevronRight, LogOut, ExternalLink, User as UserIcon, PlayCircle, Home, List, History, HelpCircle, CreditCard, Settings } from "lucide-react";
-import Image from "next/image";
-import Link from "next/link"; // se quiser que a logo leve para /home
 
 /**
  * Página inicial pós-login com um wizard de 4 etapas:
@@ -131,7 +129,6 @@ export default function HomeWizardPage() {
       <header className="sticky top-0 z-30 bg-white/80 backdrop-blur border-b border-slate-200">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            {/* botão do menu (mobile) */}
             <button
               className="lg:hidden p-2 rounded-md hover:bg-slate-100"
               aria-label="Abrir menu"
@@ -139,21 +136,11 @@ export default function HomeWizardPage() {
             >
               <Menu className="h-5 w-5" />
             </button>
-
-            {/* brand */}
-            <Link href="/home" className="flex items-center gap-3 select-none">
-              <Image
-                src="/images/logo_rd.png"
-                alt="AvaliaPro"
-                width={320}
-                height={96}
-                priority
-                className="h-14 md:h-16 w-auto object-contain" // <- aumente aqui: h-10 → h-12/14 se quiser
-              />
-              <span className="font-semibold tracking-tight text-base md:text-lg">
-                AvaliaPro
-              </span>
-            </Link>
+            {/* Logo simples */}
+            <div className="flex items-center gap-2 select-none">
+              <div className="h-6 w-6 rounded-sm bg-sky-200 border border-sky-600" />
+              <span className="font-semibold tracking-tight">AvaliaPro</span>
+            </div>
           </div>
 
           <div className="flex items-center gap-3">
@@ -271,6 +258,9 @@ function Sidebar({ onLinkClick }: { onLinkClick?: () => void }) {
 
   return (
     <nav className="sticky top-[88px] space-y-2">
+      <div className="mb-4">
+        <div className="h-8 w-8 rounded-sm bg-sky-200 border border-sky-600" />
+      </div>
       <LinkRow icon={<List className="h-4 w-4" />} label="Avaliações" />
       <LinkRow icon={<History className="h-4 w-4" />} label="Histórico" />
       <LinkRow icon={<UserIcon className="h-4 w-4" />} label="Perfil" />
