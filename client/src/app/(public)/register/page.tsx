@@ -2,8 +2,11 @@
 
 import { useState, FormEvent } from "react";
 import Image from "next/image";
+import { useRouter } from "next/navigation";
+import { apiFetch } from "@/lib/api";
 
 export default function RegisterPage() {
+  const router = useRouter();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -11,33 +14,32 @@ export default function RegisterPage() {
 
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
+  const [loading, setLoading] = useState(false);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setError("");
     setSuccess(false);
+    setLoading(true);
 
     if (password !== confirmPassword) {
       setError("As senhas não conferem");
+      setLoading(false);
       return;
     }
 
     try {
-      const response = await fetch("http://localhost:3000/api/users", {
+      await apiFetch("/users", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, email, password }),
+        auth: false,
+        body: { name, email, password },
       });
-      const data = await response.json();
-
-      if (!response.ok) {
-        setError(data.error || "Erro ao registrar usuário");
-      } else {
-        setSuccess(true);
-      }
+      setSuccess(true);
+      window.setTimeout(() => router.push("/login"), 700);
     } catch (err) {
-      console.error(err);
-      setError("Erro de requisição. Tente novamente.");
+      setError(err instanceof Error ? err.message : "Erro ao registrar usuário");
+    } finally {
+      setLoading(false);
     }
   }
 
@@ -186,6 +188,7 @@ export default function RegisterPage() {
 
                 <button
                   type="submit"
+                  disabled={loading}
                   className="
                     mx-auto 
                     block
@@ -200,9 +203,10 @@ export default function RegisterPage() {
                     transition-colors
                     duration-300
                     shadow-md
+                    disabled:opacity-60
                   "
                 >
-                  Criar
+                  {loading ? "Criando..." : "Criar"}
                 </button>
               </form>
 

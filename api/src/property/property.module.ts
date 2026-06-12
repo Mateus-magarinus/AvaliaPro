@@ -12,6 +12,6 @@ import { AuthModule } from 'src/auth/auth.module';
   ],
   providers: [PropertyRepository, PropertyService],
   controllers: [PropertyController],
-  exports: [PropertyService],
+  exports: [PropertyService, PropertyRepository],
 })
 export class PropertyModule { }

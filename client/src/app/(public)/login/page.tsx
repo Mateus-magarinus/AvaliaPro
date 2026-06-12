@@ -2,36 +2,34 @@
 
 import { useState, FormEvent } from "react";
 import Image from "next/image";
+import { useRouter } from "next/navigation";
+import { apiFetch } from "@/lib/api";
+import { setAccessToken } from "@/lib/auth";
 
 export default function LoginPage() {
+  const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
-  const [success, setSuccess] = useState(false);
+  const [loading, setLoading] = useState(false);
 
   async function handleLogin(e: FormEvent) {
     e.preventDefault();
     setError("");
-    setSuccess(false);
+    setLoading(true);
 
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL;
-
-      const response = await fetch(`${apiUrl}/auth/login`, {
+      const data = await apiFetch<{ access_token: string }>("/auth/login", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
+        auth: false,
+        body: { email, password },
       });
-      const data = await response.json();
-
-      if (!response.ok) {
-        setError(data.error || "Falha no login");
-      } else {
-        setSuccess(true);
-      }
+      setAccessToken(data.access_token);
+      router.push("/");
     } catch (err) {
-      console.error(err);
-      setError("Erro de requisição");
+      setError(err instanceof Error ? err.message : "Falha no login");
+    } finally {
+      setLoading(false);
     }
   }
 
@@ -77,22 +75,17 @@ export default function LoginPage() {
             p-6
           "
         >
-          {success ? (
-            <p className="text-green-600 text-center mb-4">
-              Login bem-sucedido!
-            </p>
-          ) : (
-            <>
-              <h2 className="text-xl font-bold mb-6 text-gray-800 text-left">
-                Iniciar sessão
-              </h2>
-              {error && <p className="text-red-600 mb-4 text-left">{error}</p>}
-              <form onSubmit={handleLogin}>
-                <div className="mb-4">
-                  <label className="block text-gray-700 mb-1">Email</label>
-                  <input
-                    type="email"
-                    className="
+          <>
+            <h2 className="text-xl font-bold mb-6 text-gray-800 text-left">
+              Iniciar sessão
+            </h2>
+            {error && <p className="text-red-600 mb-4 text-left">{error}</p>}
+            <form onSubmit={handleLogin}>
+              <div className="mb-4">
+                <label className="block text-gray-700 mb-1">Email</label>
+                <input
+                  type="email"
+                  className="
                       block 
                       w-full 
                       border 
@@ -103,18 +96,18 @@ export default function LoginPage() {
                       focus:ring-2 
                       focus:ring-brand-light
                     "
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="Email"
-                    required
-                  />
-                </div>
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="Email"
+                  required
+                />
+              </div>
 
-                <div className="mb-2">
-                  <label className="block text-gray-700 mb-1">Senha</label>
-                  <input
-                    type="password"
-                    className="
+              <div className="mb-2">
+                <label className="block text-gray-700 mb-1">Senha</label>
+                <input
+                  type="password"
+                  className="
                       block 
                       w-full 
                       border 
@@ -125,14 +118,14 @@ export default function LoginPage() {
                       focus:ring-2 
                       focus:ring-brand-light
                     "
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="Senha"
-                    required
-                  />
-                </div>
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Senha"
+                  required
+                />
+              </div>
 
-                {/* Link: Esqueceu sua senha?
+              {/* Link: Esqueceu sua senha?
                 <div className="mb-6 text-right">
                   <a
                     href="#"
@@ -142,9 +135,10 @@ export default function LoginPage() {
                   </a>
                 </div> */}
 
-                <button
-                  type="submit"
-                  className="
+              <button
+                type="submit"
+                disabled={loading}
+                className="
                     mx-auto 
                     block
                     bg-brand-dark
@@ -159,33 +153,33 @@ export default function LoginPage() {
                     duration-300
                     shadow-sm
                     w-full
+                    disabled:opacity-60
                   "
-                >
-                  Iniciar sessão
-                </button>
-              </form>
+              >
+                {loading ? "Entrando..." : "Iniciar sessão"}
+              </button>
+            </form>
 
-              {/* Separador */}
-              <div className="my-6 flex items-center">
-                <hr className="flex-grow border-gray-300" />
-                <span className="mx-2 text-gray-500">ou</span>
-                <hr className="flex-grow border-gray-300" />
-              </div>
+            {/* Separador */}
+            <div className="my-6 flex items-center">
+              <hr className="flex-grow border-gray-300" />
+              <span className="mx-2 text-gray-500">ou</span>
+              <hr className="flex-grow border-gray-300" />
+            </div>
 
-              {/* Link para registrar */}
-              <p className="text-center mt-4">
-                <span className="text-base font-medium text-gray-700">
-                  Não possui conta?{" "}
-                </span>
-                <a
-                  href="/register"
-                  className="text-base font-bold text-brand-dark hover:underline"
-                >
-                  Crie aqui
-                </a>
-              </p>
-            </>
-          )}
+            {/* Link para registrar */}
+            <p className="text-center mt-4">
+              <span className="text-base font-medium text-gray-700">
+                Não possui conta?{" "}
+              </span>
+              <a
+                href="/register"
+                className="text-base font-bold text-brand-dark hover:underline"
+              >
+                Crie aqui
+              </a>
+            </p>
+          </>
         </div>
       </div>
     </main>

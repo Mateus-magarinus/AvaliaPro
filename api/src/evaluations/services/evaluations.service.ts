@@ -9,6 +9,7 @@ import { CreateEvaluationDto } from '../dto/create-evaluation.dto';
 import { UpdateEvaluationDto } from '../dto/update-evaluation.dto';
 import { EvaluationsRepository } from '../evaluations.repository';
 import { PropertyService } from '../../property/services/property.service';
+import { PropertyRepository } from '../../property/property.repository';
 import { Evaluation } from '../../common/models/evaluation.entity';
 import {
   REAL_ESTATE_SEARCH_PORT,
@@ -21,11 +22,12 @@ type Paginated<T> = { items: T[]; total: number; page: number; limit: number };
 
 @Injectable()
 export class EvaluationsService {
-  private static readonly MAX_SAMPLE = 60;
+  private static readonly MAX_EVALUATION_RESULTS = 70;
 
   constructor(
     private readonly evaluationsRepo: EvaluationsRepository,
     private readonly propertiesService: PropertyService,
+    private readonly propertiesRepo: PropertyRepository,
     @Inject(REAL_ESTATE_SEARCH_PORT) private readonly realEstate: RealEstateSearchPort,
   ) { }
 
@@ -33,7 +35,7 @@ export class EvaluationsService {
     if (!dto?.filters) throw new BadRequestException('filters are required');
 
     const sampleLimitReq = Number(dto.options?.previewSampleLimit ?? 10);
-    const sampleLimit = Math.min(EvaluationsService.MAX_SAMPLE, Math.max(0, sampleLimitReq));
+    const sampleLimit = Math.min(EvaluationsService.MAX_EVALUATION_RESULTS, Math.max(0, sampleLimitReq));
     const total = await this.countByFilters(dto.filters);
     const sample = sampleLimit ? await this.findMany(dto.filters, { limit: sampleLimit }) : undefined;
 
@@ -56,12 +58,11 @@ export class EvaluationsService {
       } as Partial<Evaluation>),
     );
 
-    const attachTarget = Math.min(EvaluationsService.MAX_SAMPLE, Math.max(0, Number(total)));
+    const attachTarget = Math.min(EvaluationsService.MAX_EVALUATION_RESULTS, Math.max(0, Number(total)));
 
     let attached = 0;
     if (attachTarget > 0) {
-      const oversample = Math.min(Math.max(attachTarget * 3, attachTarget), 200);
-      const docs = await this.findMany(f, { limit: oversample });
+      const docs = await this.findMany(f, { limit: attachTarget });
       attached = await this.propertiesService.attachFromExternalDocs(String(evaluation.id), docs as any);
     }
 
@@ -75,7 +76,7 @@ export class EvaluationsService {
   async preview(filters: RealEstateSearchFilters, limit = 10) {
     if (!filters) throw new BadRequestException('filters are required');
 
-    const effLimit = Math.min(EvaluationsService.MAX_SAMPLE, Number(limit) || EvaluationsService.MAX_SAMPLE);
+    const effLimit = Math.min(EvaluationsService.MAX_EVALUATION_RESULTS, Number(limit) || EvaluationsService.MAX_EVALUATION_RESULTS);
 
     const total = await this.countByFilters(filters);
     const sample = effLimit ? await this.findMany(filters, { limit: effLimit }) : undefined;
@@ -84,11 +85,24 @@ export class EvaluationsService {
 
   async listMy(
     userId: string | number,
-    params?: { page?: number; limit?: number; status?: 'draft' | 'confirmed' | 'archived'; q?: string },
+    params?: {
+      page?: number;
+      limit?: number;
+      status?: 'draft' | 'confirmed' | 'archived';
+      q?: string;
+      withProperties?: boolean;
+      withPropertyCount?: boolean;
+      sortBy?: 'createdAt' | 'name' | 'status';
+      sortDir?: 'ASC' | 'DESC' | 'asc' | 'desc';
+    },
   ): Promise<Paginated<Evaluation>> {
     const page = Math.max(1, Number(params?.page ?? 1));
     const limit = Math.min(100, Math.max(1, Number(params?.limit ?? 20)));
     const whereBase: FindOptionsWhere<Evaluation> = { user: { id: this.toIdNumber(userId) } as any };
+    const sortBy = ['createdAt', 'name', 'status'].includes(params?.sortBy ?? '')
+      ? params?.sortBy
+      : 'createdAt';
+    const sortDir = String(params?.sortDir ?? 'DESC').toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
 
     const like = params?.q?.trim();
     const where: FindOptionsWhere<Evaluation> | FindOptionsWhere<Evaluation>[] = like
@@ -106,12 +120,21 @@ export class EvaluationsService {
 
     const findOptions: FindManyOptions<Evaluation> = {
       where,
-      order: { createdAt: 'DESC' } as any,
+      order: { [sortBy as string]: sortDir } as any,
       skip: (page - 1) * limit,
       take: limit,
+      relations: params?.withProperties ? ({ properties: true } as FindOptionsRelations<Evaluation>) : undefined,
     };
 
     const [items, total] = await this.evaluationsRepo.findAndCount(findOptions);
+
+    if (params?.withPropertyCount) {
+      const counts = await this.propertiesRepo.countByEvaluationIds(items.map((item) => item.id));
+      items.forEach((item) => {
+        (item as Evaluation & { propertyCount: number }).propertyCount = counts[item.id] ?? 0;
+      });
+    }
+
     return { items, total, page, limit };
   }
 

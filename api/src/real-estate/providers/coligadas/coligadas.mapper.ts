@@ -59,11 +59,32 @@ function pickFirstVideo(v: any): string | null {
   return null;
 }
 
+function normalizeFotos(v: any): any[] {
+  if (Array.isArray(v)) return v;
+  if (!v || typeof v !== 'object') return [];
+
+  return Object.values(v).flatMap((item) =>
+    Array.isArray(item) ? item : [],
+  );
+}
+
+function fotoUrl(f: any): string | null {
+  const url = f?.Foto_Grande || f?.Foto_Media || f?.Foto_Pequena;
+  return typeof url === 'string' && url.trim() ? url.trim() : null;
+}
+
+function sortFotos(a: any, b: any) {
+  const activeDelta = Number(toBool(b?.Status)) - Number(toBool(a?.Status));
+  if (activeDelta) return activeDelta;
+  return (Number(a?.Posicao) || 0) - (Number(b?.Posicao) || 0);
+}
+
 @Injectable()
 export class ColigadasMapper {
   toRealEstateDoc(raw: any) {
     const firstType = raw?.Tipo?.[0] || {};
     const asking = firstType?.Valor ? toBRNumber(firstType.Valor) : null;
+    const fotos = normalizeFotos(raw.Fotos);
 
     // Monte apenas os campos que seu schema tem hoje.
     // Campos ausentes serão ignorados pelo Mongoose se não existirem no schema.
@@ -93,10 +114,8 @@ export class ColigadasMapper {
       AreaTotal: toBRNumber(raw.AreaTotal),
       Tipo: raw?.Tipo ?? [],
       Preco: asking, // caso você tenha um campo numérico consolidado
-      Fotos: Array.isArray(raw.Fotos)
-        ? raw.Fotos.filter((f: any) => toBool(f.Status)).sort(
-            (a: any, b: any) => (a.Posicao ?? 0) - (b.Posicao ?? 0),
-          )
+      Fotos: fotos.length
+        ? fotos.filter((f: any) => fotoUrl(f)).sort(sortFotos)
         : [],
       Video: pickFirstVideo(raw.Video),
       TourVirtual: pickFirstVideo(raw.TourVirtual),

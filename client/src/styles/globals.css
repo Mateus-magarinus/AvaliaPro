@@ -1,5 +1,10 @@
 @import "tailwindcss";
 
+@theme {
+  --color-brand-dark: #062650;
+  --color-brand-light: #b7d9e5;
+}
+
 /* Base mínima do app */
 @layer base {
   :root {
@@ -17,19 +22,19 @@
 /* Componentes utilitários usados no wizard */
 @layer components {
   .Input {
-    @apply w-full rounded-xl border border-slate-300 bg-white px-4 py-3 shadow-sm focus:outline-none focus:ring-2 focus:ring-slate-900;
+    @apply w-full rounded-md border border-slate-300 bg-white px-3 py-2.5 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-slate-900;
   }
 
   .BtnPrimary {
-    @apply inline-flex items-center rounded-full bg-slate-900 px-5 py-2.5 text-white hover:bg-slate-800 transition;
+    @apply inline-flex items-center rounded-md bg-slate-900 px-4 py-2 text-sm text-white hover:bg-slate-800 transition;
   }
 
   .BtnSecondary {
-    @apply inline-flex items-center rounded-full border border-slate-300 bg-white px-5 py-2.5 text-slate-800 hover:bg-slate-50 transition;
+    @apply inline-flex items-center rounded-md border border-slate-300 bg-white px-4 py-2 text-sm text-slate-800 hover:bg-slate-50 transition;
   }
 
   .Card {
-    @apply rounded-2xl border border-slate-200 bg-slate-50 shadow-sm;
+    @apply rounded-lg border border-slate-200 bg-slate-50 shadow-sm;
   }
 
   .SectionTitle {

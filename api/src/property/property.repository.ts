@@ -190,6 +190,26 @@ export class PropertyRepository extends AbstractRepository<Property> {
     return this.propertyRepository.count();
   }
 
+  async countByEvaluationIds(evaluationIds: number[]): Promise<Record<number, number>> {
+    if (!evaluationIds.length) return {};
+
+    const rows = await this.propertyRepository
+      .createQueryBuilder('property')
+      .innerJoin('property.evaluation', 'evaluation')
+      .select('evaluation.id', 'evaluationId')
+      .addSelect('COUNT(property.id)', 'count')
+      .where('evaluation.id IN (:...evaluationIds)', { evaluationIds })
+      .groupBy('evaluation.id')
+      .getRawMany<{ evaluationId: string | number; count: string }>();
+
+    return rows.reduce<Record<number, number>>((acc, row) => {
+      const id = Number(row.evaluationId);
+      const count = Number(row.count);
+      if (Number.isFinite(id)) acc[id] = Number.isFinite(count) ? count : 0;
+      return acc;
+    }, {});
+  }
+
   async findOwned(
     where: FindOptionsWhere<Property>,
     userId: string | number,

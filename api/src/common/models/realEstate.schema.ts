@@ -117,6 +117,12 @@ export class RealEstateDocument extends MongoAbstractDocument {
   @Prop()
   ValorIPTUTipo: string;
 
+  @Prop({ type: Number })
+  AreaPrivativa?: number;
+
+  @Prop({ type: Number })
+  AreaTotal?: number;
+
   @Prop()
   Financiamento: boolean;
 
@@ -264,6 +270,8 @@ RealEstateSchema.index({ UF: 1 });
 RealEstateSchema.index({ Bairro: 1 });
 RealEstateSchema.index({ 'Tipo.Dormitorios': 1 });
 RealEstateSchema.index({ Preco: 1 });
+RealEstateSchema.index({ AreaPrivativa: 1 });
+RealEstateSchema.index({ AreaTotal: 1 });
 RealEstateSchema.index({ DataPublicacao: -1 });
 RealEstateSchema.index({ DataPublicacaoISO: -1 });
 

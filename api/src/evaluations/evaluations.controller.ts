@@ -45,11 +45,17 @@ export class EvaluationsController {
     @CurrentUser() user: any,
     @Query('page', new ParseIntPipe({ optional: true })) page?: number,
     @Query('limit', new ParseIntPipe({ optional: true })) limit?: number,
+    @Query('withProperties', new ParseBoolPipe({ optional: true }))
+    withProperties?: boolean,
+    @Query('withPropertyCount', new ParseBoolPipe({ optional: true }))
+    withPropertyCount?: boolean,
     @Query('status') status?: 'draft' | 'confirmed' | 'archived',
     @Query('q') q?: string,
+    @Query('sortBy') sortBy?: 'createdAt' | 'name' | 'status',
+    @Query('sortDir') sortDir?: 'ASC' | 'DESC' | 'asc' | 'desc',
   ) {
     const userId = user?.id ?? user?.userId ?? user?.sub;
-    return this.service.listMy(userId, { page, limit, status, q });
+    return this.service.listMy(userId, { page, limit, status, q, withProperties, withPropertyCount, sortBy, sortDir });
   }
 
   @Get(':id')

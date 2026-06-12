@@ -145,6 +145,13 @@ export class MongoRealEstateSearchAdapter implements RealEstateSearchPort {
     return new RegExp(`${value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`, 'i');
   }
 
+  private addDisjunction(q: FilterQuery<any>, clauses: FilterQuery<any>[]) {
+    const valid = clauses.filter(Boolean);
+    if (!valid.length) return;
+    (q as any).$and = (q as any).$and ?? [];
+    (q as any).$and.push({ $or: valid });
+  }
+
   private buildNeighborhoodClause(filters: RealEstateSearchFilters, q: FilterQuery<any>) {
     const one = (filters as any).neighborhood as string | undefined;
     const many = (filters as any).neighborhoods as string[] | undefined;
@@ -174,13 +181,12 @@ export class MongoRealEstateSearchAdapter implements RealEstateSearchPort {
     const regs = uniqueRegexOf(chosen, this.ciEq.bind(this));
     if (!regs.length) return;
 
-    const orBlock = [
+    this.addDisjunction(q, [
       { 'Tipo.Tipo': { $in: regs } },
       { Perfil: { $in: regs } },
       { Anuncio: { $in: regs } },
       { Categoria: { $in: regs } },
-    ];
-    (q as any).$or = (q as any).$or ? (q as any).$or.concat(orBlock) : orBlock;
+    ]);
   }
 
   private baseQuery(filters: RealEstateSearchFilters): FilterQuery<any> {
@@ -191,7 +197,16 @@ export class MongoRealEstateSearchAdapter implements RealEstateSearchPort {
     this.buildTypeClause(filters, q);
 
     if (Number.isFinite(filters.bedrooms as any)) {
-      q['Tipo.Dormitorios'] = Number(filters.bedrooms);
+      const bedrooms = Number(filters.bedrooms);
+      q['Tipo.Dormitorios'] = bedrooms;
+    }
+
+    if (Number.isFinite(filters.bathrooms as any)) {
+      const bathrooms = Number(filters.bathrooms);
+      this.addDisjunction(q, [
+        { Banheiros: bathrooms },
+        { Banheiros: strNumEq(bathrooms) },
+      ]);
     }
 
     const min = Number(filters.minPrice ?? NaN);
@@ -205,22 +220,36 @@ export class MongoRealEstateSearchAdapter implements RealEstateSearchPort {
     if ((filters as any).source) q.source = this.ciEq((filters as any).source);
 
     if (Number.isFinite((filters as any).garage as any)) {
-      const g = Number((filters as any).garage);
-      (q as any).Garagem = strNumEq(g);
+      const garage = Number((filters as any).garage);
+      this.addDisjunction(q, [
+        { Garagem: garage },
+        { Garagem: strNumEq(garage) },
+      ]);
+    }
+
+    const areaMin = Number((filters as any).minArea ?? (filters as any).areaMin ?? NaN);
+    const areaMax = Number((filters as any).maxArea ?? (filters as any).areaMax ?? NaN);
+    if (Number.isFinite(areaMin) || Number.isFinite(areaMax)) {
+      const range: any = {};
+      if (Number.isFinite(areaMin)) range.$gte = areaMin;
+      if (Number.isFinite(areaMax)) range.$lte = areaMax;
+      this.addDisjunction(q, [
+        { AreaPrivativa: range },
+        { AreaTotal: range },
+      ]);
     }
 
     const qStr = (filters as any).q as string | undefined;
     if (qStr && qStr.trim()) {
       const kw = qStr.trim();
       const kwRx = this.ciContains(kw)!;
-      const orKw = [
+      this.addDisjunction(q, [
         { Anuncio: kwRx },
         { Nome: kwRx },
         { 'Descricao.Texto': kwRx },
         { Endereco: kwRx },
         { Bairro: kwRx },
-      ];
-      (q as any).$or = (q as any).$or ? (q as any).$or.concat(orKw) : orKw;
+      ]);
     }
 
     return q;
