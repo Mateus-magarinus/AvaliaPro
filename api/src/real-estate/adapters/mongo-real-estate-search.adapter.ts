@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model, FilterQuery } from 'mongoose';
+import { Model, QueryFilter } from 'mongoose';
 import {
   RealEstateItem,
   RealEstateSearchFilters,
@@ -145,14 +145,14 @@ export class MongoRealEstateSearchAdapter implements RealEstateSearchPort {
     return new RegExp(`${value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`, 'i');
   }
 
-  private addDisjunction(q: FilterQuery<any>, clauses: FilterQuery<any>[]) {
+  private addDisjunction(q: QueryFilter<any>, clauses: QueryFilter<any>[]) {
     const valid = clauses.filter(Boolean);
     if (!valid.length) return;
     (q as any).$and = (q as any).$and ?? [];
     (q as any).$and.push({ $or: valid });
   }
 
-  private buildNeighborhoodClause(filters: RealEstateSearchFilters, q: FilterQuery<any>) {
+  private buildNeighborhoodClause(filters: RealEstateSearchFilters, q: QueryFilter<any>) {
     const one = (filters as any).neighborhood as string | undefined;
     const many = (filters as any).neighborhoods as string[] | undefined;
 
@@ -166,7 +166,7 @@ export class MongoRealEstateSearchAdapter implements RealEstateSearchPort {
     if (typeof one === 'string' && one.trim()) q.Bairro = this.ciEq(one.trim());
   }
 
-  private buildTypeClause(filters: RealEstateSearchFilters, q: FilterQuery<any>) {
+  private buildTypeClause(filters: RealEstateSearchFilters, q: QueryFilter<any>) {
     const typesArr = Array.isArray((filters as any).types)
       ? ((filters as any).types as string[]).filter((s) => typeof s === 'string' && s.trim())
       : [];
@@ -189,8 +189,8 @@ export class MongoRealEstateSearchAdapter implements RealEstateSearchPort {
     ]);
   }
 
-  private baseQuery(filters: RealEstateSearchFilters): FilterQuery<any> {
-    const q: FilterQuery<any> = {};
+  private baseQuery(filters: RealEstateSearchFilters): QueryFilter<any> {
+    const q: QueryFilter<any> = {};
     if (filters.city) q.Cidade = this.ciEq(filters.city);
     if (filters.state) q.UF = this.ciEq(filters.state);
     this.buildNeighborhoodClause(filters, q);
@@ -256,18 +256,18 @@ export class MongoRealEstateSearchAdapter implements RealEstateSearchPort {
   }
 
   private applyKeywordTextSearchIfAvailable(
-    base: FilterQuery<any>,
+    base: QueryFilter<any>,
     keyword?: string,
-  ): { query: FilterQuery<any>; projection?: any; textSort?: any; usedText: boolean } {
+  ): { query: QueryFilter<any>; projection?: any; textSort?: any; usedText: boolean } {
     const k = (keyword ?? '').trim();
     if (!k) return { query: base, usedText: false };
-    const textQuery: FilterQuery<any> = { $and: [base, { $text: { $search: k } }] };
+    const textQuery: QueryFilter<any> = { $and: [base, { $text: { $search: k } }] };
     const projection = { score: { $meta: 'textScore' } };
     const textSort = { score: { $meta: 'textScore' } };
     return { query: textQuery, projection, textSort, usedText: true };
   }
 
-  private fallbackRegexQuery(base: FilterQuery<any>, keyword: string): FilterQuery<any> {
+  private fallbackRegexQuery(base: QueryFilter<any>, keyword: string): QueryFilter<any> {
     const rx = this.ciContains(keyword)!;
     return {
       $and: [
@@ -377,7 +377,7 @@ export class MongoRealEstateSearchAdapter implements RealEstateSearchPort {
   async getByExternalId(externalId: string, source?: string) {
     const idNum = Number(externalId);
     if (!Number.isFinite(idNum)) return null;
-    const q: FilterQuery<any> = { ID: idNum };
+    const q: QueryFilter<any> = { ID: idNum };
     if (source) q.source = this.ciEq(source);
     const doc = await this.model.findOne(q).lean().exec();
     if (!doc) return null;

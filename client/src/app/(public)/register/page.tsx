@@ -22,6 +22,12 @@ export default function RegisterPage() {
     setSuccess(false);
     setLoading(true);
 
+    if (password.length < 8) {
+      setError("A senha deve ter pelo menos 8 caracteres");
+      setLoading(false);
+      return;
+    }
+
     if (password !== confirmPassword) {
       setError("As senhas não conferem");
       setLoading(false);
@@ -101,14 +107,14 @@ export default function RegisterPage() {
                   <input
                     type="text"
                     className="
-                      block 
-                      w-full 
-                      border 
-                      border-gray-300 
-                      rounded-md 
-                      p-2 pl-9
-                      focus:outline-none 
-                      focus:ring-2 
+                      block
+                      w-full
+                      border
+                      border-gray-300
+                      rounded-md
+                      p-2
+                      focus:outline-none
+                      focus:ring-2
                       focus:ring-brand-light
                     "
                     value={name}
@@ -210,14 +216,7 @@ export default function RegisterPage() {
                 </button>
               </form>
 
-              {/* Exemplo de redes sociais (remova se não quiser) */}
-              <div className="my-6 flex items-center">
-                <hr className="flex-grow border-gray-300" />
-                <span className="mx-2 text-gray-500">ou</span>
-                <hr className="flex-grow border-gray-300" />
-              </div>
-
-              <p className="text-center mt-4">
+              <p className="text-center mt-6">
                 <a
                   href="/login"
                   className="

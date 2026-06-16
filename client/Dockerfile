@@ -1,5 +1,5 @@
 # ---- DEV ----
-FROM node:22.12.0-alpine AS development
+FROM node:24.14.0-alpine AS development
 WORKDIR /usr/src/app
 ENV NODE_ENV=development
 # hot reload em host/WSL/mac
@@ -14,7 +14,7 @@ EXPOSE 3000
 CMD ["npm", "run", "dev"]
 
 # ---- BUILD ----
-FROM node:22.12.0-alpine AS builder
+FROM node:24.14.0-alpine AS builder
 WORKDIR /usr/src/app
 COPY package*.json ./
 RUN npm install
@@ -22,7 +22,7 @@ COPY . .
 RUN npm run build
 
 # ---- PRODUCTION ----
-FROM node:22.12.0-alpine AS production
+FROM node:24.14.0-alpine AS production
 WORKDIR /usr/src/app
 ENV NODE_ENV=production
 ENV PORT=3000

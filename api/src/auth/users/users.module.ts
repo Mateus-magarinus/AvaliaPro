@@ -3,7 +3,7 @@ import { UsersController } from './users.controller';
 import { UsersService } from './users.service';
 import { UsersRepository } from './users.repository';
 import { DatabaseModule, Evaluation, Property, User } from '@common';
-import { EvaluationsModule } from 'src/evaluations/evaluations.module';
+import { EvaluationsModule } from '../../evaluations/evaluations.module';
 
 @Module({
   imports: [

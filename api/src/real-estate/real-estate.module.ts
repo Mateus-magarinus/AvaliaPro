@@ -12,7 +12,7 @@ import { RealEstateService } from './real-estate.service';
 import { HttpModule } from '@nestjs/axios';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { RealEstateController } from './real-estate.controller';
-import { REAL_ESTATE_SEARCH_PORT } from 'src/evaluations/interfaces/evaluations.ports';
+import { REAL_ESTATE_SEARCH_PORT } from '../evaluations/interfaces/evaluations.ports';
 import { MongoRealEstateSearchAdapter } from './adapters/mongo-real-estate-search.adapter';
 import { ColigadasMapper } from './providers/coligadas/coligadas.mapper';
 import { ColigadasClient } from './providers/coligadas/coligadas.client';
@@ -32,7 +32,6 @@ import { ColigadasClient } from './providers/coligadas/coligadas.client';
           httpAgent: new http.Agent({ keepAlive: true, maxSockets: 50 }),
           httpsAgent: new https.Agent({ keepAlive: true, maxSockets: 50 }),
         };
-
       },
       inject: [ConfigService],
     }),
@@ -56,4 +55,4 @@ import { ColigadasClient } from './providers/coligadas/coligadas.client';
   controllers: [RealEstateController],
   exports: [RealEstateService, REAL_ESTATE_SEARCH_PORT],
 })
-export class RealEstateModule { }
+export class RealEstateModule {}

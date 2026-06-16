@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { FilterQuery, Model } from 'mongoose';
+import { Model, QueryFilter } from 'mongoose';
 import { MongoAbstractRepository, RealEstateDocument } from '@common';
 
 type SimpleDeleteResult = { acknowledged?: boolean; deletedCount?: number };
@@ -17,7 +17,7 @@ export class RealEstateRepository extends MongoAbstractRepository<RealEstateDocu
   }
 
   async deleteMany(
-    filter: FilterQuery<RealEstateDocument>,
+    filter: QueryFilter<RealEstateDocument>,
   ): Promise<SimpleDeleteResult> {
     return this.model.deleteMany(filter).exec();
   }

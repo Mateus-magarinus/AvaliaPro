@@ -157,7 +157,10 @@ export class PropertyRepository extends AbstractRepository<Property> {
       this.logger.debug(`insertManyDedup: inserted=${inserted}`);
       if (inserted > 0) return inserted;
     } catch (e) {
-      this.logger.error(`insertManyDedup insert() failed — will fallback to save(): ${e?.message}`);
+      const message = e instanceof Error ? e.message : String(e);
+      this.logger.error(
+        `insertManyDedup insert() failed — will fallback to save(): ${message}`,
+      );
     }
 
     try {
@@ -172,7 +175,10 @@ export class PropertyRepository extends AbstractRepository<Property> {
       this.logger.debug(`insertManyDedup fallback save(): saved=${saved}`);
       return saved;
     } catch (e) {
-      this.logger.error(`insertManyDedup fallback save() failed: ${e?.message}`);
+      const message = e instanceof Error ? e.message : String(e);
+      this.logger.error(
+        `insertManyDedup fallback save() failed: ${message}`,
+      );
       throw e;
     }
   }

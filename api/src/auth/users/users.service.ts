@@ -12,7 +12,7 @@ import { GetUserDto } from './dto/get-user.dto';
 import { UsersRepository } from './users.repository';
 import { User } from '@common';
 import { UpdateUserDto } from './dto/update-user.dto';
-import { EvaluationsRepository } from 'src/evaluations/evaluations.repository';
+import { EvaluationsRepository } from '../../evaluations/evaluations.repository';
 
 @Injectable()
 export class UsersService {

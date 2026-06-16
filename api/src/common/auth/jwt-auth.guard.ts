@@ -10,7 +10,7 @@ import {
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { Reflector } from '@nestjs/core';
-import { UsersService } from 'src/auth/users/users.service';
+import { UsersService } from '../../auth/users/users.service';
 
 @Injectable()
 export class JwtAuthGuard implements CanActivate {
@@ -67,7 +67,8 @@ export class JwtAuthGuard implements CanActivate {
       this.logger.log(`JWT validated for user: ${user.email}`);
       return true;
     } catch (error) {
-      this.logger.error('Token validation failed', error.stack);
+      const stack = error instanceof Error ? error.stack : String(error);
+      this.logger.error('Token validation failed', stack);
       throw new UnauthorizedException('Invalid token');
     }
   }

@@ -2,9 +2,10 @@
 
 import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
-import { ChevronLeft, ChevronRight, Download, ExternalLink, ImageIcon, Pencil, MapPin, Save, Table2, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, Download, ExternalLink, FileSpreadsheet, ImageIcon, Pencil, MapPin, Save, Table2, X } from "lucide-react";
 import MapView, { MapPoint } from "./MapView";
 import { apiFetch } from "@/lib/api";
+import { getAccessToken } from "@/lib/auth";
 import { EvaluationRecord, PropertyRecord } from "@/types/avaliapro";
 
 type Tab = "table" | "details" | "map";
@@ -149,6 +150,7 @@ export default function ResultsViews({
 }) {
   const [tab, setTab] = useState<Tab>("table");
   const [selectedId, setSelectedId] = useState<number | null>(properties[0]?.id ?? null);
+  const [exportingXlsx, setExportingXlsx] = useState(false);
 
   const selected = useMemo(
     () => properties.find((property) => property.id === selectedId) ?? properties[0] ?? null,
@@ -166,6 +168,29 @@ export default function ResultsViews({
       })),
     [properties],
   );
+
+  async function exportXlsx() {
+    try {
+      setExportingXlsx(true);
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000/api";
+      const token = getAccessToken();
+      const response = await fetch(`${apiUrl}/evaluations/${evaluation.id}/export`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!response.ok) throw new Error(`Erro ${response.status}`);
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `avaliapro-avaliacao-${evaluation.id}.xlsx`;
+      link.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      // silently fail — user sees button go back to normal
+    } finally {
+      setExportingXlsx(false);
+    }
+  }
 
   function exportCsv() {
     const header = [
@@ -220,14 +245,24 @@ export default function ResultsViews({
             {[evaluation.propertyType, evaluation.neighborhood, evaluation.city, evaluation.state].filter(Boolean).join(" - ")}
           </p>
         </div>
-        <button
-          onClick={exportCsv}
-          disabled={!properties.length}
-          className="inline-flex items-center justify-center gap-2 rounded-md bg-[#062650] px-4 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          <Download className="h-4 w-4" />
-          Exportar CSV
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={exportXlsx}
+            disabled={!properties.length || exportingXlsx}
+            className="inline-flex items-center justify-center gap-2 rounded-md bg-[#062650] px-4 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <FileSpreadsheet className="h-4 w-4" />
+            {exportingXlsx ? "Gerando..." : "Exportar Excel"}
+          </button>
+          <button
+            onClick={exportCsv}
+            disabled={!properties.length}
+            className="inline-flex items-center justify-center gap-2 rounded-md border border-[#062650] px-4 py-3 text-sm font-semibold text-[#062650] disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <Download className="h-4 w-4" />
+            CSV
+          </button>
+        </div>
       </div>
 
       <div className="grid gap-3 md:grid-cols-3">

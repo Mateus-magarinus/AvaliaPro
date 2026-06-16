@@ -3,7 +3,7 @@ import { DatabaseModule, Property, Evaluation } from '@common';
 import { PropertyRepository } from './property.repository';
 import { PropertyController } from './property.controller';
 import { PropertyService } from './services/property.service';
-import { AuthModule } from 'src/auth/auth.module';
+import { AuthModule } from '../auth/auth.module';
 
 @Module({
   imports: [

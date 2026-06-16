@@ -25,13 +25,14 @@ import { PropertyModule } from './property/property.module';
 
         MONGODB_URI: Joi.string().uri().required(),
 
-        JWT_SECRET: Joi.string().required(),
-        JWT_EXPIRATION: Joi.string().required(),
+        JWT_SECRET: Joi.string().min(32).required(),
+        JWT_EXPIRATION: Joi.number().required(),
 
         API_IMOVEIS_LIST: Joi.string().required(),
         API_IMOVEL_DETAIL: Joi.string().required(),
 
         API_COLIGADAS_TIMEOUT_MS: Joi.number().default(10000),
+        API_COLIGADAS_CONCURRENCY: Joi.number().default(6),
       }),
       validationOptions: { abortEarly: false },
     }),

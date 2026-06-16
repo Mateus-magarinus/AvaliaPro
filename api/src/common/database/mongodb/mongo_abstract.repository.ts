@@ -1,9 +1,8 @@
 import { Logger, NotFoundException } from '@nestjs/common';
 import { MongoAbstractDocument } from './mongo_abstract.schema';
 import {
-  FilterQuery,
-  HydratedDocument,
   Model,
+  QueryFilter,
   Types,
   UpdateQuery,
 } from 'mongoose';
@@ -15,11 +14,11 @@ export abstract class MongoAbstractRepository<
 
   constructor(protected readonly model: Model<TDocument>) {}
 
-  async findAll(filterQuery: FilterQuery<TDocument>): Promise<TDocument[]> {
+  async findAll(filterQuery: QueryFilter<TDocument>): Promise<TDocument[]> {
     return this.model.find(filterQuery).lean<TDocument[]>(true);
   }
 
-  async findOne(filterQuery: FilterQuery<TDocument>): Promise<TDocument> {
+  async findOne(filterQuery: QueryFilter<TDocument>): Promise<TDocument> {
     const document = await this.model
       .findOne(filterQuery)
       .lean<TDocument>(true);
@@ -40,7 +39,7 @@ export abstract class MongoAbstractRepository<
   }
 
   async findOneAndUpdate(
-    filterQuery: FilterQuery<TDocument>,
+    filterQuery: QueryFilter<TDocument>,
     update: UpdateQuery<TDocument>,
   ): Promise<TDocument> {
     const document = await this.model
@@ -56,7 +55,7 @@ export abstract class MongoAbstractRepository<
   }
 
   async findOneAndUpsert(
-    filterQuery: FilterQuery<TDocument>,
+    filterQuery: QueryFilter<TDocument>,
     update: UpdateQuery<TDocument>,
   ): Promise<TDocument> {
     const document = await this.model
@@ -67,7 +66,7 @@ export abstract class MongoAbstractRepository<
   }
 
   async findOneAndDelete(
-    filterQuery: FilterQuery<TDocument>,
+    filterQuery: QueryFilter<TDocument>,
   ): Promise<TDocument> {
     const document = await this.model
       .findOneAndDelete(filterQuery)
@@ -82,16 +81,14 @@ export abstract class MongoAbstractRepository<
   }
 
   async insertMany(documents: Omit<TDocument, '_id'>[]): Promise<TDocument[]> {
-    const result = (await this.model.insertMany(
-      documents,
-    )) as HydratedDocument<TDocument>[];
+    const result = await this.model.insertMany(documents as TDocument[]);
 
     return result.map((doc) => doc.toObject() as TDocument);
   }
 
   async updateManyCustom(
     updates: {
-      filter: FilterQuery<TDocument>;
+      filter: QueryFilter<TDocument>;
       update: UpdateQuery<TDocument>;
     }[],
   ): Promise<void> {

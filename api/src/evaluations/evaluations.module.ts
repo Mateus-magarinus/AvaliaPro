@@ -5,11 +5,12 @@ import { Evaluation } from '../common/models/evaluation.entity';
 
 import { EvaluationsController } from './evaluations.controller';
 import { EvaluationsService } from './services/evaluations.service';
+import { EvaluationExportService } from './services/evaluation-export.service';
 import { EvaluationsRepository } from './evaluations.repository';
 
 import { PropertyModule } from '../property/property.module';
 import { RealEstateModule } from '../real-estate/real-estate.module';
-import { AuthModule } from 'src/auth/auth.module';
+import { AuthModule } from '../auth/auth.module';
 
 @Module({
   imports: [
@@ -19,7 +20,7 @@ import { AuthModule } from 'src/auth/auth.module';
     forwardRef(() => AuthModule),
   ],
   controllers: [EvaluationsController],
-  providers: [EvaluationsService, EvaluationsRepository],
-  exports: [EvaluationsService, EvaluationsRepository],
+  providers: [EvaluationsService, EvaluationExportService, EvaluationsRepository],
+  exports: [EvaluationsService, EvaluationExportService, EvaluationsRepository],
 })
 export class EvaluationsModule { }

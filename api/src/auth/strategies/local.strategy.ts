@@ -22,11 +22,12 @@ export class LocalStrategy extends PassportStrategy(Strategy) {
       this.logger.log(`User validated: ${email}`);
       return user;
     } catch (err) {
+      const error = err instanceof Error ? err : new Error(String(err));
       this.logger.error(
         `Error during user validation for email: ${email}`,
-        err.stack,
+        error.stack,
       );
-      throw new UnauthorizedException(err.message || 'Unauthorized');
+      throw new UnauthorizedException(error.message || 'Unauthorized');
     }
   }
 }

@@ -9,9 +9,12 @@ import {
   Patch,
   Post,
   Query,
+  Res,
   UseGuards,
 } from '@nestjs/common';
+import { Response } from 'express';
 import { EvaluationsService } from './services/evaluations.service';
+import { EvaluationExportService } from './services/evaluation-export.service';
 import { CreateEvaluationDto } from './dto/create-evaluation.dto';
 import { UpdateEvaluationDto } from './dto/update-evaluation.dto';
 import { CurrentUser, JwtAuthGuard } from '@common';
@@ -19,7 +22,10 @@ import { CurrentUser, JwtAuthGuard } from '@common';
 @UseGuards(JwtAuthGuard)
 @Controller('evaluations')
 export class EvaluationsController {
-  constructor(private readonly service: EvaluationsService) { }
+  constructor(
+    private readonly service: EvaluationsService,
+    private readonly exportService: EvaluationExportService,
+  ) {}
 
   @Post()
   async createWithPreview(
@@ -86,6 +92,22 @@ export class EvaluationsController {
   ) {
     const userId = user?.id ?? user?.userId ?? user?.sub;
     return this.service.confirmMy(userId, id);
+  }
+
+  @Get(':id/export')
+  async exportXlsx(
+    @Param('id', ParseIntPipe) id: number,
+    @CurrentUser() user: any,
+    @Res() res: Response,
+  ) {
+    const userId = user?.id ?? user?.userId ?? user?.sub;
+    const buffer = await this.exportService.buildXlsx(Number(userId), id);
+    res.set({
+      'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'Content-Disposition': `attachment; filename="avaliapro-avaliacao-${id}.xlsx"`,
+      'Content-Length': buffer.length,
+    });
+    res.end(buffer);
   }
 
   @Delete(':id')
