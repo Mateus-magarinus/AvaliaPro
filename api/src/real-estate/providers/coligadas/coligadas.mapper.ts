@@ -63,9 +63,7 @@ function normalizeFotos(v: any): any[] {
   if (Array.isArray(v)) return v;
   if (!v || typeof v !== 'object') return [];
 
-  return Object.values(v).flatMap((item) =>
-    Array.isArray(item) ? item : [],
-  );
+  return Object.values(v).flatMap((item) => (Array.isArray(item) ? item : []));
 }
 
 function fotoUrl(f: any): string | null {

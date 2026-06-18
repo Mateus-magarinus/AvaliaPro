@@ -22,7 +22,7 @@ function int(v: any): number | null {
 
 function coord(v?: string | number): number | null {
   if (v == null || v === '') return null;
-  let n = typeof v === 'number' ? v : Number(String(v).replace(',', '.'));
+  const n = typeof v === 'number' ? v : Number(String(v).replace(',', '.'));
   if (!Number.isFinite(n)) return null;
 
   const scales = [1, 10, 100, 1e3, 1e4, 1e5, 1e6, 1e7, 1e8];
@@ -38,14 +38,14 @@ function coord(v?: string | number): number | null {
 function mapDocToItem(doc: any): RealEstateItem {
   const bedroomsFromTipos = Array.isArray(doc.Tipo)
     ? (doc.Tipo.map((t: any) => int(t?.Dormitorios)).find((n: number | null) =>
-      Number.isFinite(n as any),
-    ) ?? null)
+        Number.isFinite(n as any),
+      ) ?? null)
     : null;
 
   const priceFromTipos = Array.isArray(doc.Tipo)
     ? (doc.Tipo.map((t: any) => num(t?.Valor)).find((n: number | null) =>
-      Number.isFinite(n as any),
-    ) ?? null)
+        Number.isFinite(n as any),
+      ) ?? null)
     : null;
 
   const price =
@@ -60,8 +60,8 @@ function mapDocToItem(doc: any): RealEstateItem {
 
   const images = Array.isArray(doc.Fotos)
     ? doc.Fotos.map(
-      (f: any) => f.Foto_Grande || f.Foto_Media || f.Foto_Pequena,
-    ).filter(Boolean)
+        (f: any) => f.Foto_Grande || f.Foto_Media || f.Foto_Pequena,
+      ).filter(Boolean)
     : [];
 
   const area =
@@ -97,7 +97,14 @@ type SortKey = 'recent' | 'price_asc' | 'price_desc';
 const TYPE_SYNONYMS: Record<string, RegExp[]> = {
   Apartamento: [/apart/i, /\bapto?\b/i, /flat/i, /loft/i],
   Casa: [/^casa/i, /casas?/i, /sobrado/i, /condom[ií]nio/i],
-  Studio: [/studio/i, /st[úu]dio/i, /kitin?et/i, /\bkitnet\b/i, /\bjk\b/i, /loft/i],
+  Studio: [
+    /studio/i,
+    /st[úu]dio/i,
+    /kitin?et/i,
+    /\bkitnet\b/i,
+    /\bjk\b/i,
+    /loft/i,
+  ],
   Terreno: [/terreno/i, /lote/i, /loteamento/i],
   Cobertura: [/cobertura/i],
   Pavilhão: [/pavilh[aã]o/i, /galp[aã]o/i, /dep[óo]sito/i],
@@ -134,7 +141,7 @@ export class MongoRealEstateSearchAdapter implements RealEstateSearchPort {
   constructor(
     @InjectModel(RealEstateDocument.name)
     private readonly model: Model<RealEstateDocument>,
-  ) { }
+  ) {}
 
   private ciEq(value?: string) {
     if (!value) return undefined;
@@ -152,13 +159,18 @@ export class MongoRealEstateSearchAdapter implements RealEstateSearchPort {
     (q as any).$and.push({ $or: valid });
   }
 
-  private buildNeighborhoodClause(filters: RealEstateSearchFilters, q: QueryFilter<any>) {
+  private buildNeighborhoodClause(
+    filters: RealEstateSearchFilters,
+    q: QueryFilter<any>,
+  ) {
     const one = (filters as any).neighborhood as string | undefined;
     const many = (filters as any).neighborhoods as string[] | undefined;
 
     if (Array.isArray(many) && many.length) {
       const regs = many
-        .map((n) => (typeof n === 'string' && n.trim() ? this.ciEq(n.trim()) : null))
+        .map((n) =>
+          typeof n === 'string' && n.trim() ? this.ciEq(n.trim()) : null,
+        )
         .filter(Boolean) as RegExp[];
       if (regs.length) q.Bairro = { $in: regs };
       return;
@@ -166,16 +178,23 @@ export class MongoRealEstateSearchAdapter implements RealEstateSearchPort {
     if (typeof one === 'string' && one.trim()) q.Bairro = this.ciEq(one.trim());
   }
 
-  private buildTypeClause(filters: RealEstateSearchFilters, q: QueryFilter<any>) {
+  private buildTypeClause(
+    filters: RealEstateSearchFilters,
+    q: QueryFilter<any>,
+  ) {
     const typesArr = Array.isArray((filters as any).types)
-      ? ((filters as any).types as string[]).filter((s) => typeof s === 'string' && s.trim())
+      ? ((filters as any).types as string[]).filter(
+          (s) => typeof s === 'string' && s.trim(),
+        )
       : [];
     const single =
-      (filters as any).propertyType ??
-      (filters as any).type ??
-      undefined;
+      (filters as any).propertyType ?? (filters as any).type ?? undefined;
 
-    const chosen = typesArr.length ? typesArr : (typeof single === 'string' && single.trim() ? [single] : []);
+    const chosen = typesArr.length
+      ? typesArr
+      : typeof single === 'string' && single.trim()
+        ? [single]
+        : [];
     if (!chosen.length) return;
 
     const regs = uniqueRegexOf(chosen, this.ciEq.bind(this));
@@ -227,16 +246,17 @@ export class MongoRealEstateSearchAdapter implements RealEstateSearchPort {
       ]);
     }
 
-    const areaMin = Number((filters as any).minArea ?? (filters as any).areaMin ?? NaN);
-    const areaMax = Number((filters as any).maxArea ?? (filters as any).areaMax ?? NaN);
+    const areaMin = Number(
+      (filters as any).minArea ?? (filters as any).areaMin ?? NaN,
+    );
+    const areaMax = Number(
+      (filters as any).maxArea ?? (filters as any).areaMax ?? NaN,
+    );
     if (Number.isFinite(areaMin) || Number.isFinite(areaMax)) {
       const range: any = {};
       if (Number.isFinite(areaMin)) range.$gte = areaMin;
       if (Number.isFinite(areaMax)) range.$lte = areaMax;
-      this.addDisjunction(q, [
-        { AreaPrivativa: range },
-        { AreaTotal: range },
-      ]);
+      this.addDisjunction(q, [{ AreaPrivativa: range }, { AreaTotal: range }]);
     }
 
     const qStr = (filters as any).q as string | undefined;
@@ -258,16 +278,26 @@ export class MongoRealEstateSearchAdapter implements RealEstateSearchPort {
   private applyKeywordTextSearchIfAvailable(
     base: QueryFilter<any>,
     keyword?: string,
-  ): { query: QueryFilter<any>; projection?: any; textSort?: any; usedText: boolean } {
+  ): {
+    query: QueryFilter<any>;
+    projection?: any;
+    textSort?: any;
+    usedText: boolean;
+  } {
     const k = (keyword ?? '').trim();
     if (!k) return { query: base, usedText: false };
-    const textQuery: QueryFilter<any> = { $and: [base, { $text: { $search: k } }] };
+    const textQuery: QueryFilter<any> = {
+      $and: [base, { $text: { $search: k } }],
+    };
     const projection = { score: { $meta: 'textScore' } };
     const textSort = { score: { $meta: 'textScore' } };
     return { query: textQuery, projection, textSort, usedText: true };
   }
 
-  private fallbackRegexQuery(base: QueryFilter<any>, keyword: string): QueryFilter<any> {
+  private fallbackRegexQuery(
+    base: QueryFilter<any>,
+    keyword: string,
+  ): QueryFilter<any> {
     const rx = this.ciContains(keyword)!;
     return {
       $and: [
@@ -298,7 +328,8 @@ export class MongoRealEstateSearchAdapter implements RealEstateSearchPort {
     const limit = Math.min(100, Math.max(1, Number(opts.limit ?? 20)));
 
     const base = this.baseQuery(filters);
-    const { query, projection, textSort, usedText } = this.applyKeywordTextSearchIfAvailable(base, (filters as any).q);
+    const { query, projection, textSort, usedText } =
+      this.applyKeywordTextSearchIfAvailable(base, (filters as any).q);
 
     const sort: any = {};
     switch (opts?.sort) {
@@ -334,7 +365,10 @@ export class MongoRealEstateSearchAdapter implements RealEstateSearchPort {
       total = t;
     } catch (err) {
       if (usedText) {
-        const regexQuery = this.fallbackRegexQuery(base, String((filters as any).q));
+        const regexQuery = this.fallbackRegexQuery(
+          base,
+          String((filters as any).q),
+        );
         const [d, t] = await Promise.all([
           this.model
             .find(regexQuery)

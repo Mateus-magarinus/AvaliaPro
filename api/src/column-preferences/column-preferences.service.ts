@@ -2,7 +2,11 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { UserColumnPreference } from '../common/models/user-column-preference.entity';
-import { COLUMN_CATALOG, DEFAULT_VISIBLE_KEYS, VALID_COLUMN_KEYS } from './column-catalog';
+import {
+  COLUMN_CATALOG,
+  DEFAULT_VISIBLE_KEYS,
+  VALID_COLUMN_KEYS,
+} from './column-catalog';
 
 export type ColumnPrefInput = {
   columnKey: string;
@@ -48,7 +52,12 @@ export class ColumnPreferencesService {
     let nextOrder = known.length;
     for (const c of COLUMN_CATALOG) {
       if (!present.has(c.key)) {
-        known.push({ columnKey: c.key, label: c.label, visible: false, order: nextOrder++ });
+        known.push({
+          columnKey: c.key,
+          label: c.label,
+          visible: false,
+          order: nextOrder++,
+        });
       }
     }
 
@@ -56,7 +65,10 @@ export class ColumnPreferencesService {
   }
 
   /** Substitui todas as preferências do usuário (replace-all). */
-  async replaceForUser(userId: number, items: ColumnPrefInput[]): Promise<ColumnPrefView[]> {
+  async replaceForUser(
+    userId: number,
+    items: ColumnPrefInput[],
+  ): Promise<ColumnPrefView[]> {
     const valid = (items ?? [])
       .filter((i) => i && VALID_COLUMN_KEYS.has(i.columnKey as any))
       .map((i, idx) => ({

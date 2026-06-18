@@ -28,4 +28,4 @@ import { UsersModule } from './users/users.module';
   providers: [AuthService, LocalStrategy, JwtStrategy],
   exports: [AuthService, JwtModule, UsersModule],
 })
-export class AuthModule { }
+export class AuthModule {}

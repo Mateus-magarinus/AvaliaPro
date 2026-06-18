@@ -124,7 +124,10 @@ export class SubscriptionService {
     return this.checkQuota(userId);
   }
 
-  private async rolloverPeriod(sub: Subscription, userId: number): Promise<Subscription> {
+  private async rolloverPeriod(
+    sub: Subscription,
+    userId: number,
+  ): Promise<Subscription> {
     this.logger.log(`Rolling over subscription period for user ${userId}`);
     const now = new Date();
     sub.periodStart = now;

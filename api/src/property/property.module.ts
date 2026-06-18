@@ -16,4 +16,4 @@ import { IbgeModule } from '../ibge/ibge.module';
   controllers: [PropertyController],
   exports: [PropertyService, PropertyRepository],
 })
-export class PropertyModule { }
+export class PropertyModule {}

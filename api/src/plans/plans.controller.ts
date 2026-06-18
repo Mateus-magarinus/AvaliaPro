@@ -28,10 +28,7 @@ export class SubscriptionsController {
   }
 
   @Post('upgrade')
-  upgrade(
-    @Body('planSlug') planSlug: string,
-    @CurrentUser() user: any,
-  ) {
+  upgrade(@Body('planSlug') planSlug: string, @CurrentUser() user: any) {
     const userId = user?.id ?? user?.userId ?? user?.sub;
     return this.subscriptionService.upgrade(Number(userId), planSlug);
   }

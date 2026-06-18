@@ -1,6 +1,9 @@
 import { Body, Controller, Get, Put, UseGuards } from '@nestjs/common';
 import { CurrentUser, JwtAuthGuard } from '@common';
-import { ColumnPrefInput, ColumnPreferencesService } from './column-preferences.service';
+import {
+  ColumnPrefInput,
+  ColumnPreferencesService,
+} from './column-preferences.service';
 import { COLUMN_CATALOG } from './column-catalog';
 
 @UseGuards(JwtAuthGuard)
@@ -21,7 +24,10 @@ export class ColumnPreferencesController {
     @Body('columns') columns: ColumnPrefInput[],
   ) {
     const userId = user?.id ?? user?.userId ?? user?.sub;
-    const updated = await this.service.replaceForUser(Number(userId), columns ?? []);
+    const updated = await this.service.replaceForUser(
+      Number(userId),
+      columns ?? [],
+    );
     return { catalog: COLUMN_CATALOG, columns: updated };
   }
 }

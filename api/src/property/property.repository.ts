@@ -49,7 +49,6 @@ export class PropertyRepository extends AbstractRepository<Property> {
     const meta = this.propertyRepository.metadata;
     const rel = meta.findRelationWithPropertyPath('evaluation');
     const fkDbCol = rel?.joinColumns?.[0]?.databaseName ?? 'evaluationId';
-    const targetEntity = meta.target;
 
     this.logger.debug(
       `insertManyDedup: evalId=${evalIdNum}, table=${meta.tableName}, fkDbCol=${fkDbCol}`,
@@ -65,7 +64,7 @@ export class PropertyRepository extends AbstractRepository<Property> {
         const neighborhood =
           typeof it.neighborhood === 'string'
             ? it.neighborhood.trim() || null
-            : (it.neighborhood as any) ?? null;
+            : ((it.neighborhood as any) ?? null);
 
         return {
           ...it,
@@ -168,7 +167,10 @@ export class PropertyRepository extends AbstractRepository<Property> {
       const chunkSize = 200;
       let saved = 0;
       for (let i = 0; i < entities.length; i += chunkSize) {
-        const slice = entities.slice(i, i + chunkSize) as DeepPartial<Property>[];
+        const slice = entities.slice(
+          i,
+          i + chunkSize,
+        ) as DeepPartial<Property>[];
         const res = await this.propertyRepository.save(slice);
         saved += res.length;
       }
@@ -176,9 +178,7 @@ export class PropertyRepository extends AbstractRepository<Property> {
       return saved;
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e);
-      this.logger.error(
-        `insertManyDedup fallback save() failed: ${message}`,
-      );
+      this.logger.error(`insertManyDedup fallback save() failed: ${message}`);
       throw e;
     }
   }
@@ -220,7 +220,9 @@ export class PropertyRepository extends AbstractRepository<Property> {
     return this.propertyRepository.count();
   }
 
-  async countByEvaluationIds(evaluationIds: number[]): Promise<Record<number, number>> {
+  async countByEvaluationIds(
+    evaluationIds: number[],
+  ): Promise<Record<number, number>> {
     if (!evaluationIds.length) return {};
 
     const rows = await this.propertyRepository

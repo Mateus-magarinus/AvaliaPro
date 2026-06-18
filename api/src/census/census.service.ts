@@ -38,7 +38,8 @@ export class CensusService implements OnModuleInit {
     this.dataPath =
       this.config.get<string>('CENSUS_DATA_PATH') ||
       path.join(process.cwd(), 'data', 'census-renda.json');
-    this.cacheTtl = Number(this.config.get('IBGE_CACHE_TTL_DAYS') ?? 30) * 86400;
+    this.cacheTtl =
+      Number(this.config.get('IBGE_CACHE_TTL_DAYS') ?? 30) * 86400;
   }
 
   onModuleInit() {
@@ -61,14 +62,20 @@ export class CensusService implements OnModuleInit {
       }
       const raw = fs.readFileSync(this.dataPath, 'utf-8');
       const parsed = JSON.parse(raw) as CensusDataset;
-      if (!parsed?.municipios) throw new Error('formato inválido (sem "municipios")');
+      if (!parsed?.municipios)
+        throw new Error('formato inválido (sem "municipios")');
       this.dataset = parsed;
-      const totalSetores = Object.values(parsed.municipios).reduce((acc, arr) => acc + arr.length, 0);
+      const totalSetores = Object.values(parsed.municipios).reduce(
+        (acc, arr) => acc + arr.length,
+        0,
+      );
       this.logger.log(
         `Dataset de setores carregado: ${Object.keys(parsed.municipios).length} municípios, ${totalSetores} setores (${parsed.version ?? 'sem versão'}).`,
       );
     } catch (err) {
-      this.logger.error(`Falha ao carregar dataset de setores: ${(err as Error).message}`);
+      this.logger.error(
+        `Falha ao carregar dataset de setores: ${(err as Error).message}`,
+      );
       this.dataset = null;
     }
   }
@@ -83,9 +90,17 @@ export class CensusService implements OnModuleInit {
     municipioCode: number | string,
   ): Promise<number | null> {
     if (!this.dataset) return null;
+    if (
+      lat == null ||
+      lng == null ||
+      lat === ('' as any) ||
+      lng === ('' as any)
+    )
+      return null;
     const la = Number(lat);
     const lo = Number(lng);
     if (!Number.isFinite(la) || !Number.isFinite(lo)) return null;
+    if (la === 0 && lo === 0) return null; // coordenada inválida (imóvel sem geo)
 
     const setores = this.dataset.municipios[String(municipioCode)];
     if (!setores?.length) return null;
@@ -97,7 +112,11 @@ export class CensusService implements OnModuleInit {
     });
   }
 
-  private nearestSetor(lat: number, lng: number, setores: Setor[]): Setor | null {
+  private nearestSetor(
+    lat: number,
+    lng: number,
+    setores: Setor[],
+  ): Setor | null {
     const cosLat = Math.cos((lat * Math.PI) / 180);
     let best: Setor | null = null;
     let bestDist = Infinity;

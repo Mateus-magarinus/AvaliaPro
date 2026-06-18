@@ -3,7 +3,10 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Plan } from '../common/models/plan.entity';
 
-const SEED_PLANS: Omit<Plan, 'id' | 'createdAt' | 'updatedAt' | 'subscriptions'>[] = [
+const SEED_PLANS: Omit<
+  Plan,
+  'id' | 'createdAt' | 'updatedAt' | 'subscriptions'
+>[] = [
   {
     slug: 'basic',
     name: 'Básico',
@@ -25,7 +28,12 @@ const SEED_PLANS: Omit<Plan, 'id' | 'createdAt' | 'updatedAt' | 'subscriptions'>
     name: 'Premium',
     price: 99.9,
     searchesPerMonth: -1,
-    features: { export_excel: true, map_view: true, ibge_data: true, priority_support: true },
+    features: {
+      export_excel: true,
+      map_view: true,
+      ibge_data: true,
+      priority_support: true,
+    },
     active: true,
   },
 ];
@@ -41,7 +49,9 @@ export class PlansService implements OnModuleInit {
 
   async onModuleInit() {
     for (const seed of SEED_PLANS) {
-      const existing = await this.planRepo.findOne({ where: { slug: seed.slug } });
+      const existing = await this.planRepo.findOne({
+        where: { slug: seed.slug },
+      });
       if (!existing) {
         await this.planRepo.save(this.planRepo.create(seed as Plan));
         this.logger.log(`Seeded plan: ${seed.slug}`);
@@ -50,7 +60,10 @@ export class PlansService implements OnModuleInit {
   }
 
   findAll() {
-    return this.planRepo.find({ where: { active: true }, order: { price: 'ASC' } });
+    return this.planRepo.find({
+      where: { active: true },
+      order: { price: 'ASC' },
+    });
   }
 
   findBySlug(slug: string) {

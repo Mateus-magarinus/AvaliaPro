@@ -49,6 +49,7 @@ export type EvaluationRecord = {
   areaMax?: number | string | null;
   propertyCount?: number;
   properties?: PropertyRecord[];
+  confirmedAt?: string | null;
   createdAt?: string;
   updatedAt?: string;
 };

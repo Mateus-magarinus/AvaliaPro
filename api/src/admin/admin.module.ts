@@ -8,7 +8,10 @@ import { AdminService } from './admin.service';
 import { RolesGuard } from './roles.guard';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([User, Subscription]), forwardRef(() => AuthModule)],
+  imports: [
+    TypeOrmModule.forFeature([User, Subscription]),
+    forwardRef(() => AuthModule),
+  ],
   controllers: [AdminController],
   providers: [AdminService, RolesGuard],
 })

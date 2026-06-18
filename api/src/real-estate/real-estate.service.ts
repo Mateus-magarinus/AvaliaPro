@@ -16,7 +16,7 @@ export type LocationGroup = {
   neighborhoods: string[];
 };
 
-const LOCATIONS_CACHE_KEY = 'real-estate:locations:v1';
+const LOCATIONS_CACHE_KEY = 'real-estate:locations:v2';
 const LOCATIONS_CACHE_TTL_SECONDS = 6 * 3600; // 6h
 
 function normalize(value: string): string {
@@ -25,6 +25,32 @@ function normalize(value: string): string {
     .replace(/[^\x00-\x7f]/g, '')
     .toLowerCase()
     .trim();
+}
+
+/** Bairro válido: tem ao menos uma letra e 2+ caracteres (descarta "-", "0", "99009"). */
+function isValidNeighborhood(name: string): boolean {
+  const n = name.trim();
+  if (n.length < 2) return false;
+  return /[a-zA-ZÀ-ÿ]/.test(n);
+}
+
+/** Se vier tudo em CAIXA ALTA, converte para Title Case (CENTRO -> Centro). */
+function prettifyNeighborhood(name: string): string {
+  const n = name.trim().replace(/\s+/g, ' ');
+  const hasLower = /[a-zà-ÿ]/.test(n);
+  if (hasLower) return n; // já tem mistura de caixa, mantém
+  return n
+    .toLowerCase()
+    .replace(/(^|[\s/-])([a-zà-ÿ])/g, (_, sep, ch) => sep + ch.toUpperCase());
+}
+
+/** Escolhe a melhor grafia entre variantes do mesmo bairro: prefere a que tem caixa mista. */
+function bestSpelling(a: string, b: string): string {
+  const aMixed = /[a-zà-ÿ]/.test(a) && /[A-ZÀ-Þ]/.test(a);
+  const bMixed = /[a-zà-ÿ]/.test(b) && /[A-ZÀ-Þ]/.test(b);
+  if (aMixed && !bMixed) return a;
+  if (bMixed && !aMixed) return b;
+  return a; // mantém a primeira
 }
 
 @Injectable()
@@ -59,7 +85,11 @@ export class RealEstateService {
   /** Recalcula e regrava o cache de localizações (chamar após sync). */
   async refreshLocationsCache(): Promise<LocationGroup[]> {
     const groups = await this.buildLocations();
-    await this.cache.set(LOCATIONS_CACHE_KEY, groups, LOCATIONS_CACHE_TTL_SECONDS);
+    await this.cache.set(
+      LOCATIONS_CACHE_KEY,
+      groups,
+      LOCATIONS_CACHE_TTL_SECONDS,
+    );
     return groups;
   }
 
@@ -68,17 +98,18 @@ export class RealEstateService {
     return raw
       .filter((r) => r.city)
       .map((r) => {
-        // dedupe de bairros case-insensitive, mantendo a primeira grafia
+        // descarta bairros inválidos e dedupe case-insensitive, escolhendo a melhor grafia
         const seen = new Map<string, string>();
         for (const b of r.bairros) {
           const name = String(b ?? '').trim();
-          if (!name) continue;
+          if (!isValidNeighborhood(name)) continue;
           const key = normalize(name);
-          if (!seen.has(key)) seen.set(key, name);
+          const current = seen.get(key);
+          seen.set(key, current ? bestSpelling(current, name) : name);
         }
-        const neighborhoods = Array.from(seen.values()).sort((a, b) =>
-          a.localeCompare(b, 'pt-BR'),
-        );
+        const neighborhoods = Array.from(seen.values())
+          .map(prettifyNeighborhood)
+          .sort((a, b) => a.localeCompare(b, 'pt-BR'));
         return { city: r.city, uf: r.uf, neighborhoods };
       })
       .sort((a, b) => a.city.localeCompare(b.city, 'pt-BR'));
@@ -92,7 +123,9 @@ export class RealEstateService {
       `Sync diário concluído: upserts=${result.upserts} deleted=${result.deleted} errors=${result.errors}`,
     );
     await this.refreshLocationsCache().catch((err) =>
-      this.logger.warn(`Falha ao atualizar cache de localizações: ${err?.message ?? err}`),
+      this.logger.warn(
+        `Falha ao atualizar cache de localizações: ${err?.message ?? err}`,
+      ),
     );
   }
 
@@ -177,7 +210,10 @@ export class RealEstateService {
     return summary;
   }
 
-  async syncColigadasOne(id: number, link?: string | null): Promise<{
+  async syncColigadasOne(
+    id: number,
+    link?: string | null,
+  ): Promise<{
     id: number;
     upserted: boolean;
     fotos: number;

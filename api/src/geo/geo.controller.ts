@@ -27,10 +27,11 @@ export class GeoController {
       east: Number(east),
     };
 
-    const cats = (categories
-      ? categories.split(',').map((c) => c.trim())
-      : ALL_CATEGORIES
-    ).filter((c): c is PoiCategory => ALL_CATEGORIES.includes(c as PoiCategory));
+    const cats = (
+      categories ? categories.split(',').map((c) => c.trim()) : ALL_CATEGORIES
+    ).filter((c): c is PoiCategory =>
+      ALL_CATEGORIES.includes(c as PoiCategory),
+    );
 
     const pois = await this.geoService.fetchPois(bbox, cats);
     return { count: pois.length, pois };

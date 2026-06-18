@@ -27,15 +27,17 @@ export class GeoService {
     private readonly cache: CacheService,
   ) {
     this.overpassUrl =
-      this.config.get<string>('OVERPASS_URL') ?? 'https://overpass-api.de/api/interpreter';
+      this.config.get<string>('OVERPASS_URL') ??
+      'https://overpass-api.de/api/interpreter';
     this.timeoutMs = Number(this.config.get('OVERPASS_TIMEOUT_MS') ?? 15000);
-    this.ttlSeconds = Number(this.config.get('GEO_CACHE_TTL_HOURS') ?? 24) * 3600;
+    this.ttlSeconds =
+      Number(this.config.get('GEO_CACHE_TTL_HOURS') ?? 24) * 3600;
   }
 
   async fetchPois(bbox: BBox, categories: PoiCategory[]): Promise<Poi[]> {
     this.validateBBox(bbox);
-    const cats = (categories?.length ? categories : ALL_CATEGORIES).filter((c) =>
-      ALL_CATEGORIES.includes(c),
+    const cats = (categories?.length ? categories : ALL_CATEGORIES).filter(
+      (c) => ALL_CATEGORIES.includes(c),
     );
     if (!cats.length) return [];
 
@@ -55,7 +57,8 @@ export class GeoService {
           headers: {
             'Content-Type': 'application/x-www-form-urlencoded',
             // O WAF do overpass-api.de bloqueia (HTTP 406) o User-Agent padrão do axios.
-            'User-Agent': 'Mozilla/5.0 (compatible; AvaliaPro/1.0; +https://avaliapro.local)',
+            'User-Agent':
+              'Mozilla/5.0 (compatible; AvaliaPro/1.0; +https://avaliapro.local)',
             Accept: 'application/json',
           },
         }),
@@ -64,7 +67,9 @@ export class GeoService {
       if (pois.length) await this.cache.set(cacheKey, pois, this.ttlSeconds);
       return pois;
     } catch (err) {
-      this.logger.warn(`Falha ao consultar Overpass: ${(err as Error).message}`);
+      this.logger.warn(
+        `Falha ao consultar Overpass: ${(err as Error).message}`,
+      );
       return [];
     }
   }
@@ -112,7 +117,10 @@ export class GeoService {
     return pois;
   }
 
-  private classify(tags: Record<string, string>, categories: PoiCategory[]): PoiCategory | null {
+  private classify(
+    tags: Record<string, string>,
+    categories: PoiCategory[],
+  ): PoiCategory | null {
     for (const cat of categories) {
       for (const filter of OVERPASS_FILTERS[cat]) {
         // filter no formato "chave"="valor"
@@ -137,15 +145,21 @@ export class GeoService {
   private validateBBox(bbox: BBox): void {
     const { south, west, north, east } = bbox;
     if (
-      [south, west, north, east].some((v) => typeof v !== 'number' || !Number.isFinite(v))
+      [south, west, north, east].some(
+        (v) => typeof v !== 'number' || !Number.isFinite(v),
+      )
     ) {
       throw new BadRequestException('Bounding box inválido.');
     }
     if (south >= north || west >= east) {
-      throw new BadRequestException('Bounding box inválido (sul/oeste devem ser menores).');
+      throw new BadRequestException(
+        'Bounding box inválido (sul/oeste devem ser menores).',
+      );
     }
     if (north - south > MAX_BBOX_SPAN || east - west > MAX_BBOX_SPAN) {
-      throw new BadRequestException('Área muito grande — aproxime o zoom do mapa.');
+      throw new BadRequestException(
+        'Área muito grande — aproxime o zoom do mapa.',
+      );
     }
   }
 }

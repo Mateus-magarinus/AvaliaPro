@@ -22,7 +22,11 @@ import { PlansModule } from '../plans/plans.module';
     PlansModule,
   ],
   controllers: [EvaluationsController],
-  providers: [EvaluationsService, EvaluationExportService, EvaluationsRepository],
+  providers: [
+    EvaluationsService,
+    EvaluationExportService,
+    EvaluationsRepository,
+  ],
   exports: [EvaluationsService, EvaluationExportService, EvaluationsRepository],
 })
-export class EvaluationsModule { }
+export class EvaluationsModule {}

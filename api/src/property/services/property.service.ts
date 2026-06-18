@@ -1,4 +1,10 @@
-import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+  ConflictException,
+  Logger,
+} from '@nestjs/common';
 import { PropertyRepository } from '../property.repository';
 import { Property } from '../../common/models/property.entity';
 import { RealEstateItem } from '../../evaluations/interfaces/evaluations.ports';
@@ -36,7 +42,7 @@ export class PropertyService {
     private readonly propertyRepo: PropertyRepository,
     private readonly ibgeService: IbgeService,
     private readonly censusService: CensusService,
-  ) { }
+  ) {}
 
   /**
    * Popula a renda nas propriedades da avaliação em DOIS campos:
@@ -58,7 +64,9 @@ export class PropertyService {
 
       const pending = force
         ? items
-        : items.filter((p) => p.ibgeIncome == null || Number(p.ibgeIncome) === 0);
+        : items.filter(
+            (p) => p.ibgeIncome == null || Number(p.ibgeIncome) === 0,
+          );
       if (!pending.length) return { updated: 0, bySetor: 0, byMunicipio: 0 };
 
       // Agrupa propriedades por cidade (resolução de município é cacheada por cidade)
@@ -77,8 +85,14 @@ export class PropertyService {
       let bySetor = 0;
 
       for (const [city, props] of byCity) {
-        const municipioCode = await this.ibgeService.resolveMunicipalityCode(city, fallbackState);
-        const municipalIncome = await this.ibgeService.getAverageIncome(city, fallbackState);
+        const municipioCode = await this.ibgeService.resolveMunicipalityCode(
+          city,
+          fallbackState,
+        );
+        const municipalIncome = await this.ibgeService.getAverageIncome(
+          city,
+          fallbackState,
+        );
 
         for (const p of props) {
           // Campo 1: renda do município (mesma p/ todos os imóveis da cidade)
@@ -119,7 +133,9 @@ export class PropertyService {
       );
       return { updated, bySetor, byMunicipio };
     } catch (err) {
-      this.logger.warn(`Falha ao enriquecer avaliação ${evaluationId} com renda: ${(err as Error).message}`);
+      this.logger.warn(
+        `Falha ao enriquecer avaliação ${evaluationId} com renda: ${(err as Error).message}`,
+      );
       return { updated: 0, bySetor: 0, byMunicipio: 0 };
     }
   }
@@ -132,12 +148,18 @@ export class PropertyService {
     const n = Number(v);
     return Number.isInteger(n) ? n : null;
   }
-  private recalcUnitValue(totalValue?: number | null, totalArea?: number | null): number | null {
+  private recalcUnitValue(
+    totalValue?: number | null,
+    totalArea?: number | null,
+  ): number | null {
     if (totalValue == null || totalArea == null || totalArea === 0) return null;
     return Number(totalValue) / Number(totalArea);
   }
 
-  async attachFromExternalDocs(evaluationId: string, docs: ExternalDoc[]): Promise<number> {
+  async attachFromExternalDocs(
+    evaluationId: string,
+    docs: ExternalDoc[],
+  ): Promise<number> {
     if (!docs?.length) return 0;
 
     const norm = (v: any) => (v ?? '').toString().trim();
@@ -153,23 +175,31 @@ export class PropertyService {
         if (!address) address = 'N/D';
 
         const latitudeRaw =
-          (typeof (d as any).latitude === 'number' ? (d as any).latitude : null) ??
-          (typeof d.lat === 'number' ? d.lat : null);
+          (typeof (d as any).latitude === 'number'
+            ? (d as any).latitude
+            : null) ?? (typeof d.lat === 'number' ? d.lat : null);
 
         const longitudeRaw =
-          (typeof (d as any).longitude === 'number' ? (d as any).longitude : null) ??
-          (typeof d.lng === 'number' ? d.lng : null);
+          (typeof (d as any).longitude === 'number'
+            ? (d as any).longitude
+            : null) ?? (typeof d.lng === 'number' ? d.lng : null);
 
         const latitude = safeCoord(latitudeRaw, 'lat');
         const longitude = safeCoord(longitudeRaw, 'lng');
 
         const totalValue =
-          typeof (d as any).totalValue === 'number' ? (d as any).totalValue :
-            typeof d.price === 'number' ? d.price : null;
+          typeof (d as any).totalValue === 'number'
+            ? (d as any).totalValue
+            : typeof d.price === 'number'
+              ? d.price
+              : null;
 
         const totalArea =
-          typeof (d as any).totalArea === 'number' ? (d as any).totalArea :
-            typeof d.area === 'number' ? d.area : null;
+          typeof (d as any).totalArea === 'number'
+            ? (d as any).totalArea
+            : typeof d.area === 'number'
+              ? d.area
+              : null;
 
         const unitValue =
           typeof (d as any).unitValue === 'number'
@@ -178,16 +208,17 @@ export class PropertyService {
 
         const bedrooms = this.int(d.bedrooms);
         const bathrooms = this.int(d.bathrooms);
-        const garageSpots =
-          Number.isInteger((d as any).garageSpots as any)
-            ? Number((d as any).garageSpots)
-            : Number.isInteger((d as any).garage as any)
-              ? Number((d as any).garage)
-              : null;
+        const garageSpots = Number.isInteger((d as any).garageSpots as any)
+          ? Number((d as any).garageSpots)
+          : Number.isInteger((d as any).garage as any)
+            ? Number((d as any).garage)
+            : null;
 
-        const contactLink = ((d as any).contactLink as string) ?? (d.url as string) ?? null;
+        const contactLink =
+          ((d as any).contactLink as string) ?? (d.url as string) ?? null;
         const contactPhone = ((d as any).contactPhone as string) ?? null;
-        const description = ((d as any).description as string) ?? (d.title as string) ?? null;
+        const description =
+          ((d as any).description as string) ?? (d.title as string) ?? null;
         const images = Array.isArray(d.images) ? d.images : null;
 
         return {
@@ -210,7 +241,11 @@ export class PropertyService {
           images,
         } as Partial<Property>;
       })
-      .filter((p) => (p.city ?? '').toString().trim() && (p.address ?? '').toString().trim());
+      .filter(
+        (p) =>
+          (p.city ?? '').toString().trim() &&
+          (p.address ?? '').toString().trim(),
+      );
 
     if (!mapped.length) return 0;
 
@@ -225,7 +260,9 @@ export class PropertyService {
     const page = Math.max(1, Number(params?.page ?? 1));
     const limit = Math.min(100, Math.max(1, Number(params?.limit ?? 20)));
     const [items, total] = await this.propertyRepo.findAndCount({
-      where: { evaluation: { id: evaluationId, user: { id: Number(userId) } } } as any,
+      where: {
+        evaluation: { id: evaluationId, user: { id: Number(userId) } },
+      } as any,
       order: { createdAt: 'DESC' } as any,
       skip: (page - 1) * limit,
       take: limit,
@@ -235,9 +272,13 @@ export class PropertyService {
   }
 
   async getOwned(userId: string | number, propertyId: string | number) {
-    const prop = await this.propertyRepo.findOwned({ id: propertyId as any }, userId, {
-      evaluation: true,
-    } as any);
+    const prop = await this.propertyRepo.findOwned(
+      { id: propertyId as any },
+      userId,
+      {
+        evaluation: true,
+      } as any,
+    );
     if (!prop) throw new NotFoundException('Property not found');
     return prop;
   }
@@ -251,13 +292,17 @@ export class PropertyService {
     const neighborhood = (data.neighborhood ?? '').toString().trim();
     const address = (data.address ?? '').toString().trim();
     if (!city || !neighborhood || !address) {
-      throw new BadRequestException('city, neighborhood and address are required');
+      throw new BadRequestException(
+        'city, neighborhood and address are required',
+      );
     }
 
     const totalValue = this.num(data.totalValue);
     const totalArea = this.num(data.totalArea);
     const unitValue =
-      data.unitValue != null ? this.num(data.unitValue) : this.recalcUnitValue(totalValue, totalArea);
+      data.unitValue != null
+        ? this.num(data.unitValue)
+        : this.recalcUnitValue(totalValue, totalArea);
 
     const payload: Partial<Property> = {
       evaluation: { id: evaluationId } as any,
@@ -290,38 +335,60 @@ export class PropertyService {
     throw new Error('Repository does not support create/save');
   }
 
+  private assertEvaluationEditable(prop: Property) {
+    if ((prop as any)?.evaluation?.status === 'confirmed') {
+      throw new ConflictException(
+        'Avaliação finalizada — reabra a avaliação para editar os imóveis.',
+      );
+    }
+  }
+
   async updateOwned(
     userId: string | number,
     propertyId: string | number,
     data: Partial<Property>,
   ): Promise<Property> {
     const prop = await this.getOwned(userId, propertyId);
+    this.assertEvaluationEditable(prop);
 
     if (typeof data.city === 'string') prop.city = data.city.trim();
-    if (typeof data.neighborhood === 'string') prop.neighborhood = data.neighborhood.trim();
+    if (typeof data.neighborhood === 'string')
+      prop.neighborhood = data.neighborhood.trim();
     if (typeof data.address === 'string') prop.address = data.address.trim();
 
-    if (typeof data.latitude !== 'undefined') prop.latitude = this.num(data.latitude);
-    if (typeof data.longitude !== 'undefined') prop.longitude = this.num(data.longitude);
+    if (typeof data.latitude !== 'undefined')
+      prop.latitude = this.num(data.latitude);
+    if (typeof data.longitude !== 'undefined')
+      prop.longitude = this.num(data.longitude);
 
-    if (typeof data.ibgeIncome !== 'undefined') prop.ibgeIncome = this.num(data.ibgeIncome);
+    if (typeof data.ibgeIncome !== 'undefined')
+      prop.ibgeIncome = this.num(data.ibgeIncome);
 
-    if (typeof data.bedrooms !== 'undefined') prop.bedrooms = this.int(data.bedrooms) ?? null;
-    if (typeof data.bathrooms !== 'undefined') prop.bathrooms = this.int(data.bathrooms) ?? null;
-    if (typeof data.garageSpots !== 'undefined') prop.garageSpots = this.int(data.garageSpots) ?? null;
+    if (typeof data.bedrooms !== 'undefined')
+      prop.bedrooms = this.int(data.bedrooms) ?? null;
+    if (typeof data.bathrooms !== 'undefined')
+      prop.bathrooms = this.int(data.bathrooms) ?? null;
+    if (typeof data.garageSpots !== 'undefined')
+      prop.garageSpots = this.int(data.garageSpots) ?? null;
 
-    if (typeof data.totalArea !== 'undefined') prop.totalArea = this.num(data.totalArea);
-    if (typeof data.totalValue !== 'undefined') prop.totalValue = this.num(data.totalValue);
+    if (typeof data.totalArea !== 'undefined')
+      prop.totalArea = this.num(data.totalArea);
+    if (typeof data.totalValue !== 'undefined')
+      prop.totalValue = this.num(data.totalValue);
     if (typeof data.unitValue !== 'undefined') {
       prop.unitValue = this.num(data.unitValue);
     } else {
       prop.unitValue = this.recalcUnitValue(prop.totalValue, prop.totalArea);
     }
 
-    if (typeof data.contactLink !== 'undefined') prop.contactLink = data.contactLink ?? null;
-    if (typeof data.contactPhone !== 'undefined') prop.contactPhone = data.contactPhone ?? null;
-    if (typeof data.description !== 'undefined') prop.description = data.description ?? null;
-    if (typeof data.images !== 'undefined') prop.images = Array.isArray(data.images) ? data.images : null;
+    if (typeof data.contactLink !== 'undefined')
+      prop.contactLink = data.contactLink ?? null;
+    if (typeof data.contactPhone !== 'undefined')
+      prop.contactPhone = data.contactPhone ?? null;
+    if (typeof data.description !== 'undefined')
+      prop.description = data.description ?? null;
+    if (typeof data.images !== 'undefined')
+      prop.images = Array.isArray(data.images) ? data.images : null;
 
     if ((this.propertyRepo as any).save) {
       return (this.propertyRepo as any).save(prop);
@@ -335,6 +402,7 @@ export class PropertyService {
 
   async deleteOwned(userId: string | number, propertyId: string | number) {
     const prop = await this.getOwned(userId, propertyId);
+    this.assertEvaluationEditable(prop);
     if ((this.propertyRepo as any).delete) {
       await (this.propertyRepo as any).delete({ id: prop.id } as any);
       return { ok: true };
@@ -346,12 +414,18 @@ export class PropertyService {
     throw new Error('Repository does not support delete/remove');
   }
 
-  async recalcUnitValueForProperty(userId: string | number, propertyId: string | number) {
+  async recalcUnitValueForProperty(
+    userId: string | number,
+    propertyId: string | number,
+  ) {
     const prop = await this.getOwned(userId, propertyId);
     prop.unitValue = this.recalcUnitValue(prop.totalValue, prop.totalArea);
-    if ((this.propertyRepo as any).save) return (this.propertyRepo as any).save(prop);
+    if ((this.propertyRepo as any).save)
+      return (this.propertyRepo as any).save(prop);
     if ((this.propertyRepo as any).update) {
-      await (this.propertyRepo as any).update({ id: prop.id } as any, { unitValue: prop.unitValue });
+      await (this.propertyRepo as any).update({ id: prop.id } as any, {
+        unitValue: prop.unitValue,
+      });
       return this.getOwned(userId, propertyId);
     }
     return (this.propertyRepo as any).create(prop as Property);
@@ -361,15 +435,21 @@ export class PropertyService {
     userId: string | number,
     evaluationId: string,
   ): Promise<{ updated: number }> {
-    const { items } = await this.listByEvaluation(userId, evaluationId, { page: 1, limit: 1000 });
+    const { items } = await this.listByEvaluation(userId, evaluationId, {
+      page: 1,
+      limit: 1000,
+    });
     let updated = 0;
     for (const p of items) {
       const newUv = this.recalcUnitValue(p.totalValue, p.totalArea);
       if (newUv !== p.unitValue) {
         p.unitValue = newUv;
-        if ((this.propertyRepo as any).save) await (this.propertyRepo as any).save(p);
+        if ((this.propertyRepo as any).save)
+          await (this.propertyRepo as any).save(p);
         else if ((this.propertyRepo as any).update)
-          await (this.propertyRepo as any).update({ id: p.id } as any, { unitValue: p.unitValue });
+          await (this.propertyRepo as any).update({ id: p.id } as any, {
+            unitValue: p.unitValue,
+          });
         updated++;
       }
     }

@@ -32,9 +32,9 @@ export class EvaluationExportService {
   ) {}
 
   async buildXlsx(userId: number, evaluationId: number): Promise<Buffer> {
-    const evaluation = await this.evaluationsRepo.findOne(
-      { id: evaluationId, user: { id: userId } } as any,
-    ).catch(() => null);
+    const evaluation = await this.evaluationsRepo
+      .findOne({ id: evaluationId, user: { id: userId } } as any)
+      .catch(() => null);
 
     if (!evaluation) throw new NotFoundException('Evaluation not found');
 
@@ -56,8 +56,16 @@ export class EvaluationExportService {
     sheet.mergeCells(1, 1, 1, COLUMNS.length);
     const titleCell = sheet.getCell('A1');
     titleCell.value = evaluation.name;
-    titleCell.font = { bold: true, size: 13, color: { argb: `FF${BRAND_DARK}` } };
-    titleCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: `FF${BRAND_LIGHT}` } };
+    titleCell.font = {
+      bold: true,
+      size: 13,
+      color: { argb: `FF${BRAND_DARK}` },
+    };
+    titleCell.fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: `FF${BRAND_LIGHT}` },
+    };
     titleCell.alignment = { vertical: 'middle', horizontal: 'center' };
     sheet.getRow(1).height = 28;
 
@@ -68,7 +76,11 @@ export class EvaluationExportService {
       const cell = headerRow.getCell(i + 1);
       cell.value = col.header;
       cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
-      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: `FF${BRAND_DARK}` } };
+      cell.fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: `FF${BRAND_DARK}` },
+      };
       cell.alignment = { vertical: 'middle', horizontal: 'center' };
       cell.border = {
         bottom: { style: 'thin', color: { argb: 'FFB0C4CE' } },
@@ -99,28 +111,47 @@ export class EvaluationExportService {
       // Zebra striping
       const fillColor = rowIndex % 2 === 0 ? 'FFFFFFFF' : `FFF3F9FB`;
       row.eachCell({ includeEmpty: true }, (cell) => {
-        cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: fillColor } };
+        cell.fill = {
+          type: 'pattern',
+          pattern: 'solid',
+          fgColor: { argb: fillColor },
+        };
         cell.alignment = { vertical: 'middle' };
       });
 
       // Formatos numéricos
       const currency = '#,##0.00';
-      (['totalArea', 'totalValue', 'unitValue', 'ibgeIncome', 'sectorIncome'] as const).forEach((key) => {
+      (
+        [
+          'totalArea',
+          'totalValue',
+          'unitValue',
+          'ibgeIncome',
+          'sectorIncome',
+        ] as const
+      ).forEach((key) => {
         const colIndex = COLUMNS.findIndex((c) => c.key === key) + 1;
         if (colIndex > 0) row.getCell(colIndex).numFmt = currency;
       });
 
       // Link clicável
       if (prop.contactLink) {
-        const linkColIndex = COLUMNS.findIndex((c) => c.key === 'contactLink') + 1;
+        const linkColIndex =
+          COLUMNS.findIndex((c) => c.key === 'contactLink') + 1;
         const linkCell = row.getCell(linkColIndex);
-        linkCell.value = { text: prop.contactLink, hyperlink: prop.contactLink };
+        linkCell.value = {
+          text: prop.contactLink,
+          hyperlink: prop.contactLink,
+        };
         linkCell.font = { color: { argb: `FF${BRAND_DARK}` }, underline: true };
       }
     });
 
     // Autofilter na linha de cabeçalhos
-    sheet.autoFilter = { from: { row: 2, column: 1 }, to: { row: 2, column: COLUMNS.length } };
+    sheet.autoFilter = {
+      from: { row: 2, column: 1 },
+      to: { row: 2, column: COLUMNS.length },
+    };
 
     const buffer = await workbook.xlsx.writeBuffer();
     return Buffer.from(buffer);

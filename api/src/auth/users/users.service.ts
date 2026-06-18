@@ -38,9 +38,13 @@ export class UsersService {
     const createdUser = await this.usersRepository.create(user);
 
     // Auto-subscribe to free plan
-    await this.subscriptionService.createFreeForUser(createdUser.id).catch((err) => {
-      this.logger.error(`Failed to create free subscription for user ${createdUser.id}: ${err.message}`);
-    });
+    await this.subscriptionService
+      .createFreeForUser(createdUser.id)
+      .catch((err) => {
+        this.logger.error(
+          `Failed to create free subscription for user ${createdUser.id}: ${err.message}`,
+        );
+      });
 
     delete createdUser.password;
     return createdUser;
@@ -84,15 +88,16 @@ export class UsersService {
   }
 
   async deleteMe(userId: number | string) {
-    const has = await this.evaluationsRepository.count(
-      { user: { id: Number(userId) } } as any
-    );
+    const has = await this.evaluationsRepository.count({
+      user: { id: Number(userId) },
+    } as any);
     if (has > 0) {
-      throw new BadRequestException('Account deletion blocked: evaluations are linked to this account.');
+      throw new BadRequestException(
+        'Account deletion blocked: evaluations are linked to this account.',
+      );
     }
     return this.usersRepository.findOneAndDelete({ id: Number(userId) } as any);
   }
-
 
   async verifyUser(email: string, password: string) {
     this.logger.log(`Verifying user credentials for email: ${email}`);

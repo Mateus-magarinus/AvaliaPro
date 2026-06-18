@@ -208,6 +208,12 @@ function EvaluationHistoryCard({ evaluation, onEdit }: { evaluation: EvaluationR
             <dt className="inline font-bold">Avaliação:</dt>{" "}
             <dd className="inline">{String(evaluation.id).padStart(2, "0")}</dd>
           </div>
+          {evaluation.status === "confirmed" && evaluation.confirmedAt && (
+            <div>
+              <dt className="inline font-bold">Finalizada:</dt>{" "}
+              <dd className="inline">{formatDate(evaluation.confirmedAt)}</dd>
+            </div>
+          )}
         </dl>
       </div>
 

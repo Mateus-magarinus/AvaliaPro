@@ -39,7 +39,9 @@ export class CacheService implements OnModuleDestroy {
       });
       this.redis.on('error', (err) => {
         if (this.redisHealthy) {
-          this.logger.warn(`Erro no Redis (fallback em memória): ${err.message}`);
+          this.logger.warn(
+            `Erro no Redis (fallback em memória): ${err.message}`,
+          );
         }
         this.redisHealthy = false;
       });
@@ -48,10 +50,14 @@ export class CacheService implements OnModuleDestroy {
       });
 
       this.redis.connect().catch((err) => {
-        this.logger.warn(`Não foi possível conectar ao Redis: ${err.message}. Usando cache em memória.`);
+        this.logger.warn(
+          `Não foi possível conectar ao Redis: ${err.message}. Usando cache em memória.`,
+        );
       });
     } catch (err) {
-      this.logger.warn(`Falha ao inicializar Redis: ${(err as Error).message}. Usando cache em memória.`);
+      this.logger.warn(
+        `Falha ao inicializar Redis: ${(err as Error).message}. Usando cache em memória.`,
+      );
       this.redis = null;
     }
   }
@@ -62,7 +68,9 @@ export class CacheService implements OnModuleDestroy {
         const raw = await this.redis.get(key);
         return raw ? (JSON.parse(raw) as T) : null;
       } catch (err) {
-        this.logger.debug(`get(${key}) via Redis falhou: ${(err as Error).message}`);
+        this.logger.debug(
+          `get(${key}) via Redis falhou: ${(err as Error).message}`,
+        );
       }
     }
     return this.memoryGet<T>(key);
@@ -75,14 +83,20 @@ export class CacheService implements OnModuleDestroy {
         await this.redis.set(key, raw, 'EX', ttlSeconds);
         return;
       } catch (err) {
-        this.logger.debug(`set(${key}) via Redis falhou: ${(err as Error).message}`);
+        this.logger.debug(
+          `set(${key}) via Redis falhou: ${(err as Error).message}`,
+        );
       }
     }
     this.memorySet(key, raw, ttlSeconds);
   }
 
   /** Retorna do cache ou executa `factory`, armazenando o resultado. */
-  async wrap<T>(key: string, ttlSeconds: number, factory: () => Promise<T>): Promise<T> {
+  async wrap<T>(
+    key: string,
+    ttlSeconds: number,
+    factory: () => Promise<T>,
+  ): Promise<T> {
     const cached = await this.get<T>(key);
     if (cached !== null && cached !== undefined) return cached;
 

@@ -1,10 +1,16 @@
 import {
   BadRequestException,
+  ConflictException,
   Inject,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { ILike, FindManyOptions, FindOptionsRelations, FindOptionsWhere } from 'typeorm';
+import {
+  ILike,
+  FindManyOptions,
+  FindOptionsRelations,
+  FindOptionsWhere,
+} from 'typeorm';
 import { CreateEvaluationDto } from '../dto/create-evaluation.dto';
 import { UpdateEvaluationDto } from '../dto/update-evaluation.dto';
 import { EvaluationsRepository } from '../evaluations.repository';
@@ -28,16 +34,22 @@ export class EvaluationsService {
     private readonly evaluationsRepo: EvaluationsRepository,
     private readonly propertiesService: PropertyService,
     private readonly propertiesRepo: PropertyRepository,
-    @Inject(REAL_ESTATE_SEARCH_PORT) private readonly realEstate: RealEstateSearchPort,
-  ) { }
+    @Inject(REAL_ESTATE_SEARCH_PORT)
+    private readonly realEstate: RealEstateSearchPort,
+  ) {}
 
   async createWithPreview(dto: CreateEvaluationDto, userId: string | number) {
     if (!dto?.filters) throw new BadRequestException('filters are required');
 
     const sampleLimitReq = Number(dto.options?.previewSampleLimit ?? 10);
-    const sampleLimit = Math.min(EvaluationsService.MAX_EVALUATION_RESULTS, Math.max(0, sampleLimitReq));
+    const sampleLimit = Math.min(
+      EvaluationsService.MAX_EVALUATION_RESULTS,
+      Math.max(0, sampleLimitReq),
+    );
     const total = await this.countByFilters(dto.filters);
-    const sample = sampleLimit ? await this.findMany(dto.filters, { limit: sampleLimit }) : undefined;
+    const sample = sampleLimit
+      ? await this.findMany(dto.filters, { limit: sampleLimit })
+      : undefined;
 
     if (dto.options?.previewOnly) {
       return { preview: { total, sample, sampleLimit } };
@@ -45,7 +57,10 @@ export class EvaluationsService {
 
     const f = dto.filters || {};
     const mapped = this.mapFiltersToEntityFields(f);
-    if (!mapped.city) throw new BadRequestException('filters.city is required to create an Evaluation');
+    if (!mapped.city)
+      throw new BadRequestException(
+        'filters.city is required to create an Evaluation',
+      );
 
     const evaluation = await this.evaluationsRepo.create(
       new Evaluation({
@@ -58,15 +73,24 @@ export class EvaluationsService {
       } as Partial<Evaluation>),
     );
 
-    const attachTarget = Math.min(EvaluationsService.MAX_EVALUATION_RESULTS, Math.max(0, Number(total)));
+    const attachTarget = Math.min(
+      EvaluationsService.MAX_EVALUATION_RESULTS,
+      Math.max(0, Number(total)),
+    );
 
     let attached = 0;
     if (attachTarget > 0) {
       const docs = await this.findMany(f, { limit: attachTarget });
-      attached = await this.propertiesService.attachFromExternalDocs(String(evaluation.id), docs as any);
+      attached = await this.propertiesService.attachFromExternalDocs(
+        String(evaluation.id),
+        docs as any,
+      );
 
       // Enriquecimento socioeconômico (IBGE) — não bloqueia em caso de falha
-      await this.propertiesService.enrichWithIbge(evaluation.id, mapped.state ?? 'RS');
+      await this.propertiesService.enrichWithIbge(
+        evaluation.id,
+        mapped.state ?? 'RS',
+      );
     }
 
     return {
@@ -79,10 +103,15 @@ export class EvaluationsService {
   async preview(filters: RealEstateSearchFilters, limit = 10) {
     if (!filters) throw new BadRequestException('filters are required');
 
-    const effLimit = Math.min(EvaluationsService.MAX_EVALUATION_RESULTS, Number(limit) || EvaluationsService.MAX_EVALUATION_RESULTS);
+    const effLimit = Math.min(
+      EvaluationsService.MAX_EVALUATION_RESULTS,
+      Number(limit) || EvaluationsService.MAX_EVALUATION_RESULTS,
+    );
 
     const total = await this.countByFilters(filters);
-    const sample = effLimit ? await this.findMany(filters, { limit: effLimit }) : undefined;
+    const sample = effLimit
+      ? await this.findMany(filters, { limit: effLimit })
+      : undefined;
     return { total, sample, sampleLimit: effLimit };
   }
 
@@ -101,23 +130,32 @@ export class EvaluationsService {
   ): Promise<Paginated<Evaluation>> {
     const page = Math.max(1, Number(params?.page ?? 1));
     const limit = Math.min(100, Math.max(1, Number(params?.limit ?? 20)));
-    const whereBase: FindOptionsWhere<Evaluation> = { user: { id: this.toIdNumber(userId) } as any };
-    const sortBy = ['createdAt', 'name', 'status'].includes(params?.sortBy ?? '')
+    const whereBase: FindOptionsWhere<Evaluation> = {
+      user: { id: this.toIdNumber(userId) } as any,
+    };
+    const sortBy = ['createdAt', 'name', 'status'].includes(
+      params?.sortBy ?? '',
+    )
       ? params?.sortBy
       : 'createdAt';
-    const sortDir = String(params?.sortDir ?? 'DESC').toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
+    const sortDir =
+      String(params?.sortDir ?? 'DESC').toUpperCase() === 'ASC'
+        ? 'ASC'
+        : 'DESC';
 
     const like = params?.q?.trim();
-    const where: FindOptionsWhere<Evaluation> | FindOptionsWhere<Evaluation>[] = like
-      ? [
-        { ...whereBase, name: ILike(`%${like}%`) } as any,
-        { ...whereBase, description: ILike(`%${like}%`) } as any,
-        { ...whereBase, city: ILike(`%${like}%`) } as any,
-      ]
-      : whereBase;
+    const where: FindOptionsWhere<Evaluation> | FindOptionsWhere<Evaluation>[] =
+      like
+        ? [
+            { ...whereBase, name: ILike(`%${like}%`) } as any,
+            { ...whereBase, description: ILike(`%${like}%`) } as any,
+            { ...whereBase, city: ILike(`%${like}%`) } as any,
+          ]
+        : whereBase;
 
     if (params?.status) {
-      if (Array.isArray(where)) where.forEach((w: any) => (w.status = params.status));
+      if (Array.isArray(where))
+        where.forEach((w: any) => (w.status = params.status));
       else (where as any).status = params.status;
     }
 
@@ -126,15 +164,20 @@ export class EvaluationsService {
       order: { [sortBy as string]: sortDir } as any,
       skip: (page - 1) * limit,
       take: limit,
-      relations: params?.withProperties ? ({ properties: true } as FindOptionsRelations<Evaluation>) : undefined,
+      relations: params?.withProperties
+        ? ({ properties: true } as FindOptionsRelations<Evaluation>)
+        : undefined,
     };
 
     const [items, total] = await this.evaluationsRepo.findAndCount(findOptions);
 
     if (params?.withPropertyCount) {
-      const counts = await this.propertiesRepo.countByEvaluationIds(items.map((item) => item.id));
+      const counts = await this.propertiesRepo.countByEvaluationIds(
+        items.map((item) => item.id),
+      );
       items.forEach((item) => {
-        (item as Evaluation & { propertyCount: number }).propertyCount = counts[item.id] ?? 0;
+        (item as Evaluation & { propertyCount: number }).propertyCount =
+          counts[item.id] ?? 0;
       });
     }
 
@@ -147,9 +190,10 @@ export class EvaluationsService {
     withProperties = false,
   ): Promise<Evaluation> {
     const id = this.toIdNumber(evaluationId);
-    const relations: FindOptionsRelations<Evaluation> | undefined = withProperties
-      ? ({ properties: true, user: true } as any)
-      : ({ user: true } as any);
+    const relations: FindOptionsRelations<Evaluation> | undefined =
+      withProperties
+        ? ({ properties: true, user: true } as any)
+        : ({ user: true } as any);
 
     const evaluation = await this.evaluationsRepo.findOne(
       { id, user: { id: this.toIdNumber(userId) } } as any,
@@ -165,8 +209,12 @@ export class EvaluationsService {
     dto: UpdateEvaluationDto,
   ): Promise<Evaluation> {
     const evaluation = await this.getMyById(userId, evaluationId);
+    if (evaluation.status === 'confirmed') {
+      throw new ConflictException('Avaliação finalizada — reabra para editar.');
+    }
 
-    if (typeof (dto as any).name === 'string') evaluation.name = (dto as any).name;
+    if (typeof (dto as any).name === 'string')
+      evaluation.name = (dto as any).name;
     if (typeof (dto as any).description !== 'undefined')
       evaluation.description = (dto as any).description ?? null;
 
@@ -175,7 +223,9 @@ export class EvaluationsService {
       evaluation.filters = f;
       const mapped = this.mapFiltersToEntityFields(f);
       if (!mapped.city) {
-        throw new BadRequestException('filters.city is required to update an Evaluation');
+        throw new BadRequestException(
+          'filters.city is required to update an Evaluation',
+        );
       }
       Object.assign(evaluation, mapped);
     }
@@ -184,7 +234,10 @@ export class EvaluationsService {
       return (this.evaluationsRepo as any).save(evaluation);
     }
     if ((this.evaluationsRepo as any).update) {
-      await (this.evaluationsRepo as any).update({ id: evaluation.id } as any, evaluation);
+      await (this.evaluationsRepo as any).update(
+        { id: evaluation.id } as any,
+        evaluation,
+      );
       return this.getMyById(userId, evaluationId);
     }
     return (this.evaluationsRepo as any).create(evaluation as Evaluation);
@@ -193,31 +246,47 @@ export class EvaluationsService {
   async confirmMy(userId: string | number, evaluationId: string | number) {
     const evaluation = await this.getMyById(userId, evaluationId);
     evaluation.status = 'confirmed';
+    evaluation.confirmedAt = new Date();
 
     if ((this.evaluationsRepo as any).save) {
       return (this.evaluationsRepo as any).save(evaluation);
     }
     if ((this.evaluationsRepo as any).update) {
-      await (this.evaluationsRepo as any).update({ id: evaluation.id } as any, { status: 'confirmed' });
+      await (this.evaluationsRepo as any).update({ id: evaluation.id } as any, {
+        status: 'confirmed',
+        confirmedAt: evaluation.confirmedAt,
+      });
       return this.getMyById(userId, evaluationId);
     }
     return (this.evaluationsRepo as any).create(evaluation as Evaluation);
   }
 
-  async enrichIbge(userId: string | number, evaluationId: string | number, force = false) {
+  async enrichIbge(
+    userId: string | number,
+    evaluationId: string | number,
+    force = false,
+  ) {
     const evaluation = await this.getMyById(userId, evaluationId);
-    return this.propertiesService.enrichWithIbge(evaluation.id, evaluation.state ?? 'RS', force);
+    return this.propertiesService.enrichWithIbge(
+      evaluation.id,
+      evaluation.state ?? 'RS',
+      force,
+    );
   }
 
   async reopenMy(userId: string | number, evaluationId: string | number) {
     const evaluation = await this.getMyById(userId, evaluationId);
     evaluation.status = 'draft';
+    evaluation.confirmedAt = null;
 
     if ((this.evaluationsRepo as any).save) {
       return (this.evaluationsRepo as any).save(evaluation);
     }
     if ((this.evaluationsRepo as any).update) {
-      await (this.evaluationsRepo as any).update({ id: evaluation.id } as any, { status: 'draft' });
+      await (this.evaluationsRepo as any).update({ id: evaluation.id } as any, {
+        status: 'draft',
+        confirmedAt: null,
+      });
       return this.getMyById(userId, evaluationId);
     }
     return (this.evaluationsRepo as any).create(evaluation as Evaluation);
@@ -231,7 +300,9 @@ export class EvaluationsService {
       return (this.evaluationsRepo as any).save(evaluation);
     }
     if ((this.evaluationsRepo as any).update) {
-      await (this.evaluationsRepo as any).update({ id: evaluation.id } as any, { status: 'archived' });
+      await (this.evaluationsRepo as any).update({ id: evaluation.id } as any, {
+        status: 'archived',
+      });
       return { ok: true };
     }
     await (this.evaluationsRepo as any).create(evaluation as Evaluation);
@@ -254,7 +325,9 @@ export class EvaluationsService {
     return Number.isInteger(n) ? n : null;
   }
 
-  private mapFiltersToEntityFields(f: RealEstateSearchFilters): Partial<Evaluation> {
+  private mapFiltersToEntityFields(
+    f: RealEstateSearchFilters,
+  ): Partial<Evaluation> {
     const city =
       typeof f.city === 'string' && f.city.trim() ? f.city.trim() : null;
     const state =
@@ -264,17 +337,22 @@ export class EvaluationsService {
 
     const typesArr = Array.isArray((f as any).types) ? (f as any).types : [];
     const propertyType =
-      (typesArr.find(t => typeof t === 'string' && t.trim())?.trim()) ??
-      (typeof (f as any).propertyType === 'string' ? (f as any).propertyType : undefined) ??
+      typesArr.find((t) => typeof t === 'string' && t.trim())?.trim() ??
+      (typeof (f as any).propertyType === 'string'
+        ? (f as any).propertyType
+        : undefined) ??
       (typeof (f as any).type === 'string' ? (f as any).type : null);
 
     const neighborhoodsArr = Array.isArray((f as any).neighborhoods)
-      ? ((f as any).neighborhoods as string[]).filter((n) => typeof n === 'string' && n.trim())
+      ? ((f as any).neighborhoods as string[]).filter(
+          (n) => typeof n === 'string' && n.trim(),
+        )
       : [];
     const neighborhood =
       neighborhoodsArr.length > 0
         ? neighborhoodsArr.join(', ')
-        : typeof (f as any).neighborhood === 'string' && (f as any).neighborhood.trim()
+        : typeof (f as any).neighborhood === 'string' &&
+            (f as any).neighborhood.trim()
           ? (f as any).neighborhood.trim()
           : null;
 
@@ -293,7 +371,9 @@ export class EvaluationsService {
     } as Partial<Evaluation>;
   }
 
-  private async countByFilters(filters: RealEstateSearchFilters): Promise<number> {
+  private async countByFilters(
+    filters: RealEstateSearchFilters,
+  ): Promise<number> {
     const { total } = await this.realEstate.count(filters);
     return total;
   }

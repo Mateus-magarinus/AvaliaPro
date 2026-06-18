@@ -18,16 +18,17 @@ import { PropertyService } from './services/property.service';
 @UseGuards(JwtAuthGuard)
 @Controller('properties')
 export class PropertyController {
-  constructor(private readonly service: PropertyService) { }
+  constructor(private readonly service: PropertyService) {}
 
   @Post()
-  async create(
-    @Body() dto: CreatePropertyDto,
-    @CurrentUser() user: any,
-  ) {
+  async create(@Body() dto: CreatePropertyDto, @CurrentUser() user: any) {
     const userId = user?.id ?? user?.userId ?? user?.sub;
     const { evaluationId, ...data } = dto as any;
-    return this.service.createManual(String(userId), String(evaluationId), data);
+    return this.service.createManual(
+      String(userId),
+      String(evaluationId),
+      data,
+    );
   }
 
   @Get(':id')
@@ -88,6 +89,9 @@ export class PropertyController {
     @CurrentUser() user: any,
   ) {
     const userId = user?.id ?? user?.userId ?? user?.sub;
-    return this.service.recalcUnitValuesForEvaluation(String(userId), String(evaluationId));
+    return this.service.recalcUnitValuesForEvaluation(
+      String(userId),
+      String(evaluationId),
+    );
   }
 }

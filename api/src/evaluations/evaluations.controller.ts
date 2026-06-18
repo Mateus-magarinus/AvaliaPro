@@ -67,7 +67,16 @@ export class EvaluationsController {
     @Query('sortDir') sortDir?: 'ASC' | 'DESC' | 'asc' | 'desc',
   ) {
     const userId = user?.id ?? user?.userId ?? user?.sub;
-    return this.service.listMy(userId, { page, limit, status, q, withProperties, withPropertyCount, sortBy, sortDir });
+    return this.service.listMy(userId, {
+      page,
+      limit,
+      status,
+      q,
+      withProperties,
+      withPropertyCount,
+      sortBy,
+      sortDir,
+    });
   }
 
   @Get(':id')
@@ -128,7 +137,8 @@ export class EvaluationsController {
     const userId = user?.id ?? user?.userId ?? user?.sub;
     const buffer = await this.exportService.buildXlsx(Number(userId), id);
     res.set({
-      'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'Content-Type':
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       'Content-Disposition': `attachment; filename="avaliapro-avaliacao-${id}.xlsx"`,
       'Content-Length': buffer.length,
     });

@@ -10,7 +10,10 @@ import { PlansController, SubscriptionsController } from './plans.controller';
 import { QuotaGuard } from './guards/quota.guard';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Plan, Subscription, User]), forwardRef(() => AuthModule)],
+  imports: [
+    TypeOrmModule.forFeature([Plan, Subscription, User]),
+    forwardRef(() => AuthModule),
+  ],
   controllers: [PlansController, SubscriptionsController],
   providers: [PlansService, SubscriptionService, QuotaGuard],
   exports: [PlansService, SubscriptionService, QuotaGuard],

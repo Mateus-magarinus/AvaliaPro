@@ -21,6 +21,10 @@ export class Evaluation extends AbstractEntity<Evaluation> {
   @Column({ type: 'varchar', length: 20, default: 'draft' })
   status: 'draft' | 'confirmed' | 'archived';
 
+  /** Data em que a avaliação foi finalizada (status confirmed). Limpa ao reabrir. */
+  @Column({ type: 'timestamp', nullable: true })
+  confirmedAt: Date | null;
+
   @Column({ type: 'varchar', length: 255 })
   name: string;
 

@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
-import { CheckCircle2, ChevronLeft, ChevronRight, Download, ExternalLink, FileSpreadsheet, GripVertical, ImageIcon, Pencil, MapPin, RotateCcw, Save, SlidersHorizontal, Table2, X } from "lucide-react";
+import { AlertTriangle, CheckCircle2, ChevronLeft, ChevronRight, Download, ExternalLink, FileSpreadsheet, GripVertical, ImageIcon, Pencil, MapPin, RotateCcw, Save, SlidersHorizontal, Table2, X } from "lucide-react";
 import MapView, { MapPoint } from "./MapView";
 import { apiFetch } from "@/lib/api";
 import { getAccessToken } from "@/lib/auth";
@@ -98,6 +98,25 @@ function propertyTitle(property: PropertyRecord) {
   return property.description || [property.neighborhood, property.city].filter(Boolean).join(" - ") || `Imóvel ${property.id}`;
 }
 
+/** Detecta renda de setor muito discrepante do município (provável dado ruidoso). */
+function sectorIncomeAnomaly(
+  sector: number | string | null | undefined,
+  municipal: number | string | null | undefined,
+): "low" | "high" | null {
+  const s = numberValue(sector);
+  const m = numberValue(municipal);
+  if (s === null || m === null || m <= 0) return null;
+  if (s < m * 0.4) return "low";
+  if (s > m * 2.5) return "high";
+  return null;
+}
+
+function anomalyTitle(kind: "low" | "high") {
+  return kind === "low"
+    ? "Renda do setor bem abaixo da média do município — possível setor com poucos respondentes ou dado suprimido pelo IBGE."
+    : "Renda do setor bem acima da média do município — verifique antes de usar.";
+}
+
 function renderCell(key: string, property: PropertyRecord): ReactNode {
   switch (key) {
     case "city":
@@ -120,8 +139,17 @@ function renderCell(key: string, property: PropertyRecord): ReactNode {
       return property.garageSpots ?? "-";
     case "ibgeIncome":
       return formatMoney(property.ibgeIncome);
-    case "sectorIncome":
-      return formatMoney(property.sectorIncome);
+    case "sectorIncome": {
+      const text = formatMoney(property.sectorIncome);
+      const anomaly = sectorIncomeAnomaly(property.sectorIncome, property.ibgeIncome);
+      if (!anomaly) return text;
+      return (
+        <span className="inline-flex items-center gap-1 font-medium text-amber-600" title={anomalyTitle(anomaly)}>
+          {text}
+          <AlertTriangle className="h-3.5 w-3.5" />
+        </span>
+      );
+    }
     case "latitude":
       return property.latitude ?? "-";
     case "longitude":
@@ -353,6 +381,11 @@ export default function ResultsViews({
           <div className="flex items-center gap-3">
             <p className="text-sm font-medium text-slate-500">Avaliação #{evaluation.id}</p>
             <StatusBadge status={evaluation.status} />
+            {evaluation.status === "confirmed" && evaluation.confirmedAt && (
+              <span className="text-xs text-slate-500">
+                Finalizada em {new Date(evaluation.confirmedAt).toLocaleDateString("pt-BR")}
+              </span>
+            )}
           </div>
           <h1 className="mt-1 text-3xl font-semibold text-[#062650]">{evaluation.name}</h1>
           <p className="mt-2 text-sm text-slate-600">
@@ -480,6 +513,7 @@ export default function ResultsViews({
                 properties={properties}
                 onSelect={setSelectedId}
                 onSaved={onPropertyUpdated}
+                readOnly={evaluation.status === "confirmed"}
               />
             )}
 
@@ -654,11 +688,13 @@ function PropertyDetails({
   properties,
   onSelect,
   onSaved,
+  readOnly = false,
 }: {
   property: PropertyRecord;
   properties: PropertyRecord[];
   onSelect: (id: number) => void;
   onSaved?: (property: PropertyRecord) => void;
+  readOnly?: boolean;
 }) {
   const images = imagesOf(property);
   const [imageIndex, setImageIndex] = useState(0);
@@ -746,13 +782,15 @@ function PropertyDetails({
           <h3 className="mt-1 text-xl font-semibold text-[#062650]">{propertyTitle(property)}</h3>
         </div>
         <div className="flex items-center justify-center gap-2">
-          <button
-            onClick={toggleEditing}
-            className="inline-flex items-center justify-center gap-2 rounded-md border border-slate-300 px-3 py-2 text-sm font-semibold text-[#062650]"
-          >
-            {editing ? <X className="h-4 w-4" /> : <Pencil className="h-4 w-4" />}
-            {editing ? "Cancelar" : "Editar"}
-          </button>
+          {!readOnly && (
+            <button
+              onClick={toggleEditing}
+              className="inline-flex items-center justify-center gap-2 rounded-md border border-slate-300 px-3 py-2 text-sm font-semibold text-[#062650]"
+            >
+              {editing ? <X className="h-4 w-4" /> : <Pencil className="h-4 w-4" />}
+              {editing ? "Cancelar" : "Editar"}
+            </button>
+          )}
           <button
             onClick={() => onSelect(next.id)}
             className="inline-flex items-center justify-center gap-2 rounded-md border border-slate-300 px-3 py-2 text-sm font-semibold text-[#062650]"
@@ -853,7 +891,7 @@ function PropertyDetails({
             <Info label="Bairro" value={property.neighborhood || "-"} />
             <Info label="Endereço" value={property.address} />
             <Info label="Renda município" value={formatMoney(property.ibgeIncome)} />
-            <Info label="Renda setor" value={formatMoney(property.sectorIncome)} />
+            <Info label="Renda setor" value={renderCell("sectorIncome", property)} />
             <Info label="Quartos" value={property.bedrooms ?? "-"} />
             <Info label="Banheiros" value={property.bathrooms ?? "-"} />
             <Info label="Garagem" value={property.garageSpots ?? "-"} />

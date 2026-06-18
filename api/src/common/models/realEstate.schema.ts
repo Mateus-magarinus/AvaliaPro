@@ -262,7 +262,8 @@ export class RealEstateDocument extends MongoAbstractDocument {
   DataPublicacaoISO?: string;
 }
 
-export const RealEstateSchema = SchemaFactory.createForClass(RealEstateDocument);
+export const RealEstateSchema =
+  SchemaFactory.createForClass(RealEstateDocument);
 
 RealEstateSchema.index({ ID: 1, source: 1 }, { unique: true });
 RealEstateSchema.index({ Cidade: 1 });
@@ -303,6 +304,5 @@ RealEstateSchema.index(
       SEODescricao: 1,
     },
     default_language: 'portuguese',
-  }
+  },
 );
-

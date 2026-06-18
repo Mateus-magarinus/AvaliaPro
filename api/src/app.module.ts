@@ -50,7 +50,9 @@ import { ColumnPreferencesModule } from './column-preferences/column-preferences
 
         CENSUS_DATA_PATH: Joi.string().optional().allow(''),
 
-        OVERPASS_URL: Joi.string().uri().default('https://overpass-api.de/api/interpreter'),
+        OVERPASS_URL: Joi.string()
+          .uri()
+          .default('https://overpass-api.de/api/interpreter'),
         OVERPASS_TIMEOUT_MS: Joi.number().default(15000),
         GEO_CACHE_TTL_HOURS: Joi.number().default(24),
       }),
