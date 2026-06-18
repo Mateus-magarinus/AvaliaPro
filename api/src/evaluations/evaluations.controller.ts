@@ -18,6 +18,8 @@ import { EvaluationExportService } from './services/evaluation-export.service';
 import { CreateEvaluationDto } from './dto/create-evaluation.dto';
 import { UpdateEvaluationDto } from './dto/update-evaluation.dto';
 import { CurrentUser, JwtAuthGuard } from '@common';
+import { QuotaGuard } from '../plans/guards/quota.guard';
+import { SubscriptionService } from '../plans/subscription.service';
 
 @UseGuards(JwtAuthGuard)
 @Controller('evaluations')
@@ -25,15 +27,19 @@ export class EvaluationsController {
   constructor(
     private readonly service: EvaluationsService,
     private readonly exportService: EvaluationExportService,
+    private readonly subscriptionService: SubscriptionService,
   ) {}
 
+  @UseGuards(QuotaGuard)
   @Post()
   async createWithPreview(
     @Body() dto: CreateEvaluationDto,
     @CurrentUser() user: any,
   ) {
     const userId = user?.id ?? user?.userId ?? user?.sub;
-    return this.service.createWithPreview(dto, userId);
+    const result = await this.service.createWithPreview(dto, userId);
+    await this.subscriptionService.incrementUsage(Number(userId));
+    return result;
   }
 
   @Post('preview')
@@ -92,6 +98,15 @@ export class EvaluationsController {
   ) {
     const userId = user?.id ?? user?.userId ?? user?.sub;
     return this.service.confirmMy(userId, id);
+  }
+
+  @Post(':id/enrich-ibge')
+  async enrichIbge(
+    @Param('id', ParseIntPipe) id: number,
+    @CurrentUser() user: any,
+  ) {
+    const userId = user?.id ?? user?.userId ?? user?.sub;
+    return this.service.enrichIbge(userId, id);
   }
 
   @Get(':id/export')

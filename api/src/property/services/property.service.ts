@@ -2,6 +2,7 @@ import { Injectable, NotFoundException, BadRequestException, Logger } from '@nes
 import { PropertyRepository } from '../property.repository';
 import { Property } from '../../common/models/property.entity';
 import { RealEstateItem } from '../../evaluations/interfaces/evaluations.ports';
+import { IbgeService } from '../../ibge/ibge.service';
 
 type Paginated<T> = { items: T[]; total: number; page: number; limit: number };
 
@@ -30,7 +31,58 @@ function safeCoord(v: any, kind: 'lat' | 'lng'): number | null {
 export class PropertyService {
   private readonly logger = new Logger(PropertyService.name);
 
-  constructor(private readonly propertyRepo: PropertyRepository) { }
+  constructor(
+    private readonly propertyRepo: PropertyRepository,
+    private readonly ibgeService: IbgeService,
+  ) { }
+
+  /**
+   * Popula `ibgeIncome` (salário médio mensal do município) nas propriedades da
+   * avaliação. Agrupa por município para minimizar chamadas ao IBGE (cacheadas).
+   * Só atualiza propriedades que ainda não têm renda definida.
+   * Tolerante a falhas — nunca lança.
+   */
+  async enrichWithIbge(
+    evaluationId: string | number,
+    fallbackState = 'RS',
+  ): Promise<{ updated: number }> {
+    try {
+      const [items] = await this.propertyRepo.findAndCount({
+        where: { evaluation: { id: evaluationId } } as any,
+        take: 1000,
+      });
+
+      const pending = items.filter(
+        (p) => p.ibgeIncome == null || Number(p.ibgeIncome) === 0,
+      );
+      if (!pending.length) return { updated: 0 };
+
+      // Agrupa ids por cidade (estado da avaliação é o mesmo para todos)
+      const byCity = new Map<string, number[]>();
+      for (const p of pending) {
+        const city = (p.city ?? '').trim();
+        if (!city) continue;
+        const arr = byCity.get(city) ?? [];
+        arr.push(p.id);
+        byCity.set(city, arr);
+      }
+
+      let updated = 0;
+      for (const [city, ids] of byCity) {
+        const income = await this.ibgeService.getAverageIncome(city, fallbackState);
+        if (income == null) continue;
+        updated += await this.propertyRepo.setIbgeIncomeForIds(ids, income);
+      }
+
+      if (updated) {
+        this.logger.log(`IBGE: ${updated} propriedades enriquecidas na avaliação ${evaluationId}`);
+      }
+      return { updated };
+    } catch (err) {
+      this.logger.warn(`Falha ao enriquecer avaliação ${evaluationId} com IBGE: ${(err as Error).message}`);
+      return { updated: 0 };
+    }
+  }
 
   private num(v: any): number | null {
     const n = Number(v);

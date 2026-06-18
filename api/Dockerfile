@@ -24,6 +24,8 @@ FROM node:24.14.0-alpine AS production
 WORKDIR /usr/src/app
 ENV NODE_ENV=production
 
+RUN apk add --no-cache python3 make g++
+
 COPY package*.json ./
 RUN npm ci --omit=dev
 

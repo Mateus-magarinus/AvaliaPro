@@ -63,3 +63,66 @@ export type CreateEvaluationResponse = {
   preview: EvaluationPreview;
   attached: number;
 };
+
+export type QuotaStatus = {
+  allowed: boolean;
+  searchesUsed: number;
+  searchesLimit: number;
+  remaining: number;
+  planName: string;
+  periodEnd: string;
+};
+
+export type PlanRecord = {
+  id: number;
+  slug: string;
+  name: string;
+  price: number;
+  searchesPerMonth: number;
+  features: Record<string, boolean>;
+  active: boolean;
+};
+
+export type UserRecord = {
+  id: number;
+  name: string;
+  email: string;
+  role: 'admin' | 'user';
+  searchesUsed: number;
+  createdAt: string;
+};
+
+export type LocationGroup = {
+  city: string;
+  uf: string;
+  neighborhoods: string[];
+};
+
+export type LocationsResponse = {
+  count: number;
+  cities: LocationGroup[];
+};
+
+export type ColumnPref = {
+  columnKey: string;
+  label: string;
+  visible: boolean;
+  order: number;
+};
+
+export type ColumnPreferencesResponse = {
+  catalog: Array<{ key: string; label: string }>;
+  columns: ColumnPref[];
+};
+
+export type AdminUserView = {
+  id: number;
+  name: string;
+  email: string;
+  role: string;
+  searchesUsed: number;
+  createdAt: string;
+  plan: string;
+  planSlug: string | null;
+  periodEnd: string | null;
+};

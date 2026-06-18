@@ -1,7 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import {
@@ -13,11 +13,15 @@ import {
   LogOut,
   Menu,
   PlayCircle,
+  Shield,
   User as UserIcon,
   X,
 } from "lucide-react";
+import { apiFetch } from "@/lib/api";
+import { getAccessToken } from "@/lib/auth";
+import type { QuotaStatus, UserRecord } from "@/types/avaliapro";
 
-type DashboardItem = "evaluations" | "history" | "profile" | "plans" | "support";
+type DashboardItem = "evaluations" | "history" | "profile" | "plans" | "support" | "admin";
 
 type DashboardShellProps = {
   activeItem: DashboardItem;
@@ -26,17 +30,19 @@ type DashboardShellProps = {
   onStartEvaluation: () => void;
 };
 
-const navItems: Array<{
+const BASE_NAV_ITEMS: Array<{
   id: DashboardItem;
   label: string;
   href?: string;
   icon: ReactNode;
+  adminOnly?: boolean;
 }> = [
   { id: "evaluations", label: "Avaliações", href: "/", icon: <List className="h-5 w-5" /> },
   { id: "history", label: "Histórico", href: "/history", icon: <History className="h-5 w-5" /> },
   { id: "profile", label: "Perfil", icon: <UserIcon className="h-5 w-5" /> },
-  { id: "plans", label: "Planos", icon: <CreditCard className="h-5 w-5" /> },
+  { id: "plans", label: "Planos", href: "/billing", icon: <CreditCard className="h-5 w-5" /> },
   { id: "support", label: "Suporte", icon: <HelpCircle className="h-5 w-5" /> },
+  { id: "admin", label: "Admin", href: "/admin", icon: <Shield className="h-5 w-5" />, adminOnly: true },
 ];
 
 export default function DashboardShell({
@@ -46,6 +52,30 @@ export default function DashboardShell({
   onStartEvaluation,
 }: DashboardShellProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [quota, setQuota] = useState<QuotaStatus | null>(null);
+  const [userRole, setUserRole] = useState<string>("user");
+
+  useEffect(() => {
+    if (!getAccessToken()) return;
+    Promise.all([
+      apiFetch<QuotaStatus>("/subscriptions/me").catch(() => null),
+      apiFetch<UserRecord>("/users/me").catch(() => null),
+    ]).then(([quotaData, userData]) => {
+      if (quotaData) setQuota(quotaData);
+      if (userData) setUserRole(userData.role);
+    });
+  }, []);
+
+  const navItems = useMemo(
+    () => BASE_NAV_ITEMS.filter((item) => !item.adminOnly || userRole === "admin"),
+    [userRole],
+  );
+
+  const creditsLabel = useMemo(() => {
+    if (!quota) return null;
+    if (quota.searchesLimit === -1) return "Ilimitado";
+    return `${quota.remaining} restantes`;
+  }, [quota]);
 
   return (
     <main className="min-h-screen bg-white text-slate-900">
@@ -63,7 +93,14 @@ export default function DashboardShell({
           </div>
 
           <div className="flex items-center gap-3 sm:gap-5">
-            <span className="hidden text-sm font-bold text-[#062650] sm:inline">3 créditos</span>
+            {creditsLabel && (
+              <Link
+                href="/billing"
+                className="hidden text-sm font-bold text-[#062650] hover:underline sm:inline"
+              >
+                {creditsLabel}
+              </Link>
+            )}
             <button
               onClick={onStartEvaluation}
               className="inline-flex items-center justify-center gap-2 rounded-md bg-[#062650] px-4 py-3 text-sm font-semibold text-white sm:min-w-52"

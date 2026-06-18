@@ -50,7 +50,6 @@ export async function apiFetch<T>(path: string, options: ApiOptions = {}) {
 
   const response = await fetch(`${apiBaseUrl()}${normalizePath(path)}`, {
     ...requestOptions,
-    credentials: "include",
     headers: requestHeaders,
     body: body === undefined ? undefined : JSON.stringify(body),
   });

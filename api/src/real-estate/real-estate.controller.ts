@@ -1,9 +1,22 @@
-import { Body, Controller, Param, ParseIntPipe, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, Param, ParseIntPipe, Post, Query } from '@nestjs/common';
 import { RealEstateService } from './real-estate.service';
 
 @Controller('real-estate')
 export class RealEstateController {
   constructor(private readonly realEstateService: RealEstateService) {}
+
+  /** Cidades (com UF) e respectivos bairros do catálogo, para os filtros. */
+  @Get('locations')
+  async locations() {
+    const cities = await this.realEstateService.getLocations();
+    return { count: cities.length, cities };
+  }
+
+  @Post('locations/refresh')
+  async refreshLocations() {
+    const cities = await this.realEstateService.refreshLocationsCache();
+    return { count: cities.length, cities };
+  }
 
   @Post('sync/coligadas')
   async syncColigadas() {

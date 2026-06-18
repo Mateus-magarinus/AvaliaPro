@@ -11,6 +11,7 @@ import { EvaluationsRepository } from './evaluations.repository';
 import { PropertyModule } from '../property/property.module';
 import { RealEstateModule } from '../real-estate/real-estate.module';
 import { AuthModule } from '../auth/auth.module';
+import { PlansModule } from '../plans/plans.module';
 
 @Module({
   imports: [
@@ -18,6 +19,7 @@ import { AuthModule } from '../auth/auth.module';
     PropertyModule,
     RealEstateModule,
     forwardRef(() => AuthModule),
+    PlansModule,
   ],
   controllers: [EvaluationsController],
   providers: [EvaluationsService, EvaluationExportService, EvaluationsRepository],

@@ -9,23 +9,25 @@ import {
   Building2,
   Car,
   CheckCircle2,
+  ChevronDown,
   Loader2,
   MapPin,
   Ruler,
   Search,
   WalletCards,
+  X,
 } from "lucide-react";
 import DashboardShell from "@/components/dashboard/DashboardShell";
 import { apiFetch, ApiError } from "@/lib/api";
 import { clearAccessToken, getAccessToken } from "@/lib/auth";
-import { CreateEvaluationResponse, EvaluationPreview } from "@/types/avaliapro";
+import { CreateEvaluationResponse, EvaluationPreview, LocationGroup, LocationsResponse } from "@/types/avaliapro";
 
 type WizardForm = {
   name: string;
   propertyType: string;
   state: string;
   city: string;
-  neighborhood: string;
+  neighborhoods: string[];
   q: string;
   bedrooms: string;
   bathrooms: string;
@@ -41,7 +43,7 @@ const initialForm: WizardForm = {
   propertyType: "Apartamento",
   state: "RS",
   city: "Passo Fundo",
-  neighborhood: "",
+  neighborhoods: [],
   q: "",
   bedrooms: "",
   bathrooms: "",
@@ -65,11 +67,20 @@ function toInt(value: string) {
   return Number.isInteger(n) ? n : undefined;
 }
 
+/** Formata uma string de dígitos como inteiro pt-BR (ex.: "350000" → "350.000"). */
+function formatIntBR(value: string) {
+  const digits = value.replace(/\D/g, "");
+  if (!digits) return "";
+  return new Intl.NumberFormat("pt-BR").format(Number(digits));
+}
+
 function buildFilters(form: WizardForm) {
+  const neighborhoods = form.neighborhoods.map((n) => n.trim()).filter(Boolean);
   return {
     city: form.city.trim(),
     state: form.state.trim().toUpperCase() || "RS",
-    neighborhood: form.neighborhood.trim() || undefined,
+    neighborhoods: neighborhoods.length ? neighborhoods : undefined,
+    neighborhood: neighborhoods.length === 1 ? neighborhoods[0] : undefined,
     propertyType: form.propertyType || undefined,
     type: form.propertyType || undefined,
     q: form.q.trim() || undefined,
@@ -92,6 +103,7 @@ export default function HomeWizardPage() {
   const [preview, setPreview] = useState<EvaluationPreview | null>(null);
   const [error, setError] = useState("");
   const [form, setForm] = useState<WizardForm>(initialForm);
+  const [locations, setLocations] = useState<LocationGroup[]>([]);
 
   useEffect(() => {
     if (!getAccessToken()) {
@@ -100,6 +112,27 @@ export default function HomeWizardPage() {
     }
     setAuthReady(true);
   }, [router]);
+
+  useEffect(() => {
+    if (!authReady) return;
+    let cancelled = false;
+    apiFetch<LocationsResponse>("/real-estate/locations")
+      .then((data) => {
+        if (!cancelled && data?.cities?.length) setLocations(data.cities);
+      })
+      .catch(() => {
+        // mantém inputs de texto como fallback
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [authReady]);
+
+  const selectedCity = useMemo(
+    () => locations.find((loc) => loc.city.toLowerCase() === form.city.trim().toLowerCase()) ?? null,
+    [locations, form.city],
+  );
+  const neighborhoodOptions = selectedCity?.neighborhoods ?? [];
 
   const stepValid = useMemo(() => {
     if (step === 0) return form.name.trim().length >= 3;
@@ -224,24 +257,64 @@ export default function HomeWizardPage() {
                 <Field label="UF">
                   <input
                     value={form.state}
+                    readOnly={locations.length > 0}
                     onChange={(event) => setForm((current) => ({ ...current, state: event.target.value.toUpperCase().slice(0, 2) }))}
-                    className="Input"
+                    className={["Input", locations.length > 0 ? "cursor-not-allowed bg-slate-100" : ""].join(" ")}
                   />
                 </Field>
                 <Field label="Cidade" icon={<MapPin className="h-4 w-4" />}>
-                  <input
-                    value={form.city}
-                    onChange={(event) => setForm((current) => ({ ...current, city: event.target.value }))}
-                    className="Input"
-                  />
+                  {locations.length > 0 ? (
+                    <select
+                      value={form.city}
+                      onChange={(event) => {
+                        const city = event.target.value;
+                        const group = locations.find((loc) => loc.city === city);
+                        setForm((current) => ({
+                          ...current,
+                          city,
+                          state: group?.uf || current.state,
+                          neighborhoods: [],
+                        }));
+                      }}
+                      className="Input"
+                    >
+                      <option value="">Selecione a cidade</option>
+                      {locations.map((loc) => (
+                        <option key={`${loc.uf}-${loc.city}`} value={loc.city}>
+                          {loc.city} {loc.uf ? `(${loc.uf})` : ""}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <input
+                      value={form.city}
+                      onChange={(event) => setForm((current) => ({ ...current, city: event.target.value }))}
+                      className="Input"
+                    />
+                  )}
                 </Field>
-                <Field label="Bairro">
-                  <input
-                    value={form.neighborhood}
-                    onChange={(event) => setForm((current) => ({ ...current, neighborhood: event.target.value }))}
-                    placeholder="Centro"
-                    className="Input"
-                  />
+                <Field label="Bairros">
+                  {neighborhoodOptions.length > 0 ? (
+                    <MultiSelect
+                      options={neighborhoodOptions}
+                      selected={form.neighborhoods}
+                      onChange={(next) => setForm((current) => ({ ...current, neighborhoods: next }))}
+                      placeholder="Todos os bairros"
+                    />
+                  ) : (
+                    <input
+                      value={form.neighborhoods[0] ?? ""}
+                      onChange={(event) =>
+                        setForm((current) => ({
+                          ...current,
+                          neighborhoods: event.target.value.trim() ? [event.target.value] : [],
+                        }))
+                      }
+                      placeholder={locations.length > 0 && !form.city ? "Selecione a cidade primeiro" : "Centro"}
+                      disabled={locations.length > 0 && !form.city}
+                      className={["Input", locations.length > 0 && !form.city ? "cursor-not-allowed bg-slate-100" : ""].join(" ")}
+                    />
+                  )}
                 </Field>
                 <div className="md:col-span-2">
                   <Field label="Palavras-chave" icon={<Search className="h-4 w-4" />}>
@@ -262,62 +335,63 @@ export default function HomeWizardPage() {
             <StepPanel title="Detalhes" subtitle="Pesquise por características individuais do imóvel">
               <div className="grid gap-4 md:grid-cols-3">
                 <Field label="Quartos" icon={<BedDouble className="h-4 w-4" />}>
-                  <input
-                    inputMode="numeric"
+                  <QuantityStepper
                     value={form.bedrooms}
-                    onChange={(event) => setForm((current) => ({ ...current, bedrooms: event.target.value }))}
-                    className="Input"
+                    onChange={(value) => setForm((current) => ({ ...current, bedrooms: value }))}
                   />
                 </Field>
                 <Field label="Garagem" icon={<Car className="h-4 w-4" />}>
-                  <input
-                    inputMode="numeric"
+                  <QuantityStepper
                     value={form.garage}
-                    onChange={(event) => setForm((current) => ({ ...current, garage: event.target.value }))}
-                    className="Input"
+                    onChange={(value) => setForm((current) => ({ ...current, garage: value }))}
                   />
                 </Field>
                 <Field label="Banheiros" icon={<Bath className="h-4 w-4" />}>
-                  <input
-                    inputMode="numeric"
+                  <QuantityStepper
                     value={form.bathrooms}
-                    onChange={(event) => setForm((current) => ({ ...current, bathrooms: event.target.value }))}
-                    className="Input"
+                    onChange={(value) => setForm((current) => ({ ...current, bathrooms: value }))}
                   />
                 </Field>
                 <Field label="Preço mínimo" icon={<WalletCards className="h-4 w-4" />}>
-                  <input
-                    inputMode="decimal"
+                  <PrefixInput
+                    prefix="R$"
+                    inputMode="numeric"
                     value={form.minPrice}
-                    onChange={(event) => setForm((current) => ({ ...current, minPrice: event.target.value }))}
-                    className="Input"
+                    onChange={(value) => setForm((current) => ({ ...current, minPrice: formatIntBR(value) }))}
+                    placeholder="150.000"
                   />
                 </Field>
                 <Field label="Preço máximo" icon={<WalletCards className="h-4 w-4" />}>
-                  <input
-                    inputMode="decimal"
+                  <PrefixInput
+                    prefix="R$"
+                    inputMode="numeric"
                     value={form.maxPrice}
-                    onChange={(event) => setForm((current) => ({ ...current, maxPrice: event.target.value }))}
-                    className="Input"
+                    onChange={(value) => setForm((current) => ({ ...current, maxPrice: formatIntBR(value) }))}
+                    placeholder="800.000"
                   />
                 </Field>
                 <Field label="Área mínima" icon={<Ruler className="h-4 w-4" />}>
-                  <input
-                    inputMode="decimal"
+                  <PrefixInput
+                    suffix="m²"
+                    inputMode="numeric"
                     value={form.minArea}
-                    onChange={(event) => setForm((current) => ({ ...current, minArea: event.target.value }))}
-                    className="Input"
+                    onChange={(value) => setForm((current) => ({ ...current, minArea: formatIntBR(value) }))}
+                    placeholder="40"
                   />
                 </Field>
                 <Field label="Área máxima" icon={<Ruler className="h-4 w-4" />}>
-                  <input
-                    inputMode="decimal"
+                  <PrefixInput
+                    suffix="m²"
+                    inputMode="numeric"
                     value={form.maxArea}
-                    onChange={(event) => setForm((current) => ({ ...current, maxArea: event.target.value }))}
-                    className="Input"
+                    onChange={(value) => setForm((current) => ({ ...current, maxArea: formatIntBR(value) }))}
+                    placeholder="200"
                   />
                 </Field>
               </div>
+              <p className="mt-4 text-xs text-slate-500">
+                Deixe os campos de quantidade em &quot;Qualquer&quot; para não filtrar por esse critério.
+              </p>
               <NavButtons canNext={stepValid} onBack={() => setStep(1)} onNext={() => setStep(3)} />
             </StepPanel>
           )}
@@ -330,20 +404,20 @@ export default function HomeWizardPage() {
                   <br />
                   <b>Cidade:</b> {form.city} - {form.state}
                   <br />
-                  <b>Bairro:</b> {form.neighborhood || "-"}
+                  <b>Bairros:</b> {form.neighborhoods.length ? form.neighborhoods.join(", ") : "Todos"}
                   <br />
                   <b>Palavras-chave:</b> {form.q || "-"}
                 </Summary>
                 <Summary title="Detalhes">
-                  <b>Quartos:</b> {form.bedrooms || "-"}
+                  <b>Quartos:</b> {form.bedrooms || "Qualquer"}
                   <br />
-                  <b>Banheiros:</b> {form.bathrooms || "-"}
+                  <b>Banheiros:</b> {form.bathrooms || "Qualquer"}
                   <br />
-                  <b>Garagem:</b> {form.garage || "-"}
+                  <b>Garagem:</b> {form.garage || "Qualquer"}
                   <br />
-                  <b>Preço:</b> {form.minPrice || "?"} - {form.maxPrice || "?"}
+                  <b>Preço:</b> {form.minPrice ? `R$ ${form.minPrice}` : "?"} - {form.maxPrice ? `R$ ${form.maxPrice}` : "?"}
                   <br />
-                  <b>Área:</b> {form.minArea || "?"} - {form.maxArea || "?"}
+                  <b>Área:</b> {form.minArea ? `${form.minArea} m²` : "?"} - {form.maxArea ? `${form.maxArea} m²` : "?"}
                 </Summary>
                 <div className="rounded-md border border-[#9db8ca] bg-white px-3 py-2.5 text-sm font-semibold text-[#062650]">
                   {previewLoading ? (
@@ -415,6 +489,171 @@ function Field({ label, icon, children }: { label: string; icon?: ReactNode; chi
       </span>
       {children}
     </label>
+  );
+}
+
+function QuantityStepper({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+  const current = value === "" ? null : Number(value);
+  const display = current === null ? "Qualquer" : `${current}${current >= 6 ? "+" : ""}`;
+
+  function setValue(next: number | null) {
+    onChange(next === null ? "" : String(next));
+  }
+
+  return (
+    <div className="flex items-stretch overflow-hidden rounded-md border border-slate-300 bg-white">
+      <button
+        type="button"
+        onClick={() => setValue(current === null || current <= 0 ? null : current - 1)}
+        className="grid w-11 place-items-center border-r border-slate-200 text-lg font-semibold text-[#062650] hover:bg-slate-100 disabled:opacity-40"
+        disabled={current === null}
+        aria-label="Diminuir"
+      >
+        −
+      </button>
+      <span className={["flex-1 select-none py-2 text-center text-sm font-semibold", current === null ? "text-slate-400" : "text-[#062650]"].join(" ")}>
+        {display}
+      </span>
+      <button
+        type="button"
+        onClick={() => setValue(current === null ? 1 : Math.min(current + 1, 10))}
+        className="grid w-11 place-items-center border-l border-slate-200 text-lg font-semibold text-[#062650] hover:bg-slate-100"
+        aria-label="Aumentar"
+      >
+        +
+      </button>
+    </div>
+  );
+}
+
+function PrefixInput({
+  prefix,
+  suffix,
+  value,
+  onChange,
+  placeholder,
+  inputMode,
+}: {
+  prefix?: string;
+  suffix?: string;
+  value: string;
+  onChange: (value: string) => void;
+  placeholder?: string;
+  inputMode?: "numeric" | "decimal" | "text";
+}) {
+  return (
+    <div className="flex items-stretch overflow-hidden rounded-md border border-slate-300 bg-white focus-within:ring-2 focus-within:ring-[#9db8ca]">
+      {prefix && (
+        <span className="grid place-items-center border-r border-slate-200 bg-slate-50 px-3 text-sm font-semibold text-slate-500">
+          {prefix}
+        </span>
+      )}
+      <input
+        inputMode={inputMode}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        placeholder={placeholder}
+        className="min-w-0 flex-1 bg-transparent px-3 py-2 text-sm text-slate-800 outline-none"
+      />
+      {suffix && (
+        <span className="grid place-items-center border-l border-slate-200 bg-slate-50 px-3 text-sm font-semibold text-slate-500">
+          {suffix}
+        </span>
+      )}
+    </div>
+  );
+}
+
+function MultiSelect({
+  options,
+  selected,
+  onChange,
+  placeholder = "Selecione",
+}: {
+  options: string[];
+  selected: string[];
+  onChange: (next: string[]) => void;
+  placeholder?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
+
+  const filtered = useMemo(
+    () => options.filter((opt) => opt.toLowerCase().includes(search.trim().toLowerCase())),
+    [options, search],
+  );
+
+  function toggle(opt: string) {
+    if (selected.includes(opt)) onChange(selected.filter((s) => s !== opt));
+    else onChange([...selected, opt]);
+  }
+
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="flex w-full items-center justify-between gap-2 rounded-md border border-slate-300 bg-white px-3 py-2 text-left text-sm text-slate-800"
+      >
+        <span className={selected.length ? "text-slate-800" : "text-slate-400"}>
+          {selected.length === 0
+            ? placeholder
+            : selected.length <= 2
+              ? selected.join(", ")
+              : `${selected.length} bairros selecionados`}
+        </span>
+        <ChevronDown className="h-4 w-4 shrink-0 text-slate-400" />
+      </button>
+
+      {selected.length > 0 && (
+        <div className="mt-2 flex flex-wrap gap-1.5">
+          {selected.map((opt) => (
+            <span key={opt} className="inline-flex items-center gap-1 rounded-full bg-[#e8f5f8] px-2.5 py-0.5 text-xs font-medium text-[#062650]">
+              {opt}
+              <button type="button" onClick={() => toggle(opt)} aria-label={`Remover ${opt}`}>
+                <X className="h-3 w-3" />
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+
+      {open && (
+        <>
+          <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
+          <div className="absolute z-20 mt-1 max-h-64 w-full overflow-hidden rounded-md border border-slate-200 bg-white shadow-lg">
+            <div className="border-b border-slate-100 p-2">
+              <input
+                autoFocus
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="Buscar bairro..."
+                className="w-full rounded border border-slate-200 px-2 py-1.5 text-sm outline-none focus:ring-1 focus:ring-[#9db8ca]"
+              />
+            </div>
+            <ul className="max-h-48 overflow-y-auto py-1">
+              {filtered.length === 0 ? (
+                <li className="px-3 py-2 text-sm text-slate-400">Nenhum bairro encontrado</li>
+              ) : (
+                filtered.map((opt) => (
+                  <li key={opt}>
+                    <label className="flex cursor-pointer items-center gap-2 px-3 py-1.5 text-sm hover:bg-slate-50">
+                      <input
+                        type="checkbox"
+                        checked={selected.includes(opt)}
+                        onChange={() => toggle(opt)}
+                        className="h-4 w-4 accent-[#062650]"
+                      />
+                      <span className="text-slate-700">{opt}</span>
+                    </label>
+                  </li>
+                ))
+              )}
+            </ul>
+          </div>
+        </>
+      )}
+    </div>
   );
 }
 

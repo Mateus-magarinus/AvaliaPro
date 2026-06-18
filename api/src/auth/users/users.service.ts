@@ -13,12 +13,17 @@ import { UsersRepository } from './users.repository';
 import { User } from '@common';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { EvaluationsRepository } from '../../evaluations/evaluations.repository';
+import { SubscriptionService } from '../../plans/subscription.service';
 
 @Injectable()
 export class UsersService {
   private readonly logger = new Logger(UsersService.name);
 
-  constructor(private readonly usersRepository: UsersRepository, private readonly evaluationsRepository: EvaluationsRepository) { }
+  constructor(
+    private readonly usersRepository: UsersRepository,
+    private readonly evaluationsRepository: EvaluationsRepository,
+    private readonly subscriptionService: SubscriptionService,
+  ) {}
 
   async create(createUserDto: CreateUserDto) {
     this.logger.log(`Creating user with email: ${createUserDto.email}`);
@@ -31,6 +36,12 @@ export class UsersService {
 
     this.logger.log(`Saving user with email: ${user.email}`);
     const createdUser = await this.usersRepository.create(user);
+
+    // Auto-subscribe to free plan
+    await this.subscriptionService.createFreeForUser(createdUser.id).catch((err) => {
+      this.logger.error(`Failed to create free subscription for user ${createdUser.id}: ${err.message}`);
+    });
+
     delete createdUser.password;
     return createdUser;
   }

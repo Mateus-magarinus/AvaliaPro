@@ -64,6 +64,9 @@ export class EvaluationsService {
     if (attachTarget > 0) {
       const docs = await this.findMany(f, { limit: attachTarget });
       attached = await this.propertiesService.attachFromExternalDocs(String(evaluation.id), docs as any);
+
+      // Enriquecimento socioeconômico (IBGE) — não bloqueia em caso de falha
+      await this.propertiesService.enrichWithIbge(evaluation.id, mapped.state ?? 'RS');
     }
 
     return {
@@ -201,6 +204,11 @@ export class EvaluationsService {
     return (this.evaluationsRepo as any).create(evaluation as Evaluation);
   }
 
+  async enrichIbge(userId: string | number, evaluationId: string | number) {
+    const evaluation = await this.getMyById(userId, evaluationId);
+    return this.propertiesService.enrichWithIbge(evaluation.id, evaluation.state ?? 'RS');
+  }
+
   async archiveMy(userId: string | number, evaluationId: string | number) {
     const evaluation = await this.getMyById(userId, evaluationId);
     evaluation.status = 'archived';
@@ -246,9 +254,20 @@ export class EvaluationsService {
       (typeof (f as any).propertyType === 'string' ? (f as any).propertyType : undefined) ??
       (typeof (f as any).type === 'string' ? (f as any).type : null);
 
+    const neighborhoodsArr = Array.isArray((f as any).neighborhoods)
+      ? ((f as any).neighborhoods as string[]).filter((n) => typeof n === 'string' && n.trim())
+      : [];
+    const neighborhood =
+      neighborhoodsArr.length > 0
+        ? neighborhoodsArr.join(', ')
+        : typeof (f as any).neighborhood === 'string' && (f as any).neighborhood.trim()
+          ? (f as any).neighborhood.trim()
+          : null;
+
     return {
       city: city as any,
       state: state as any,
+      neighborhood: neighborhood as any,
       propertyType: (propertyType ?? null) as any,
       bedrooms: this.intOrNull((f as any).bedrooms),
       bathrooms: this.intOrNull((f as any).bathrooms),

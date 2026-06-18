@@ -8,6 +8,24 @@ import {
   type ColigadasListRef,
 } from './providers/coligadas/coligadas.client';
 import { ColigadasMapper } from './providers/coligadas/coligadas.mapper';
+import { CacheService } from '../cache/cache.service';
+
+export type LocationGroup = {
+  city: string;
+  uf: string;
+  neighborhoods: string[];
+};
+
+const LOCATIONS_CACHE_KEY = 'real-estate:locations:v1';
+const LOCATIONS_CACHE_TTL_SECONDS = 6 * 3600; // 6h
+
+function normalize(value: string): string {
+  return value
+    .normalize('NFD')
+    .replace(/[^\x00-\x7f]/g, '')
+    .toLowerCase()
+    .trim();
+}
 
 @Injectable()
 export class RealEstateService {
@@ -19,10 +37,51 @@ export class RealEstateService {
     private readonly coligadas: ColigadasClient,
     private readonly mapper: ColigadasMapper,
     private readonly config: ConfigService,
+    private readonly cache: CacheService,
   ) {
     this.CONCURRENCY = Number(
       this.config.get('API_COLIGADAS_CONCURRENCY') ?? 6,
     );
+  }
+
+  /**
+   * Lista de cidades (com UF) e seus bairros, para popular os filtros do front.
+   * Resultado cacheado (Redis ou memória) por algumas horas.
+   */
+  async getLocations(): Promise<LocationGroup[]> {
+    return this.cache.wrap<LocationGroup[]>(
+      LOCATIONS_CACHE_KEY,
+      LOCATIONS_CACHE_TTL_SECONDS,
+      () => this.buildLocations(),
+    );
+  }
+
+  /** Recalcula e regrava o cache de localizações (chamar após sync). */
+  async refreshLocationsCache(): Promise<LocationGroup[]> {
+    const groups = await this.buildLocations();
+    await this.cache.set(LOCATIONS_CACHE_KEY, groups, LOCATIONS_CACHE_TTL_SECONDS);
+    return groups;
+  }
+
+  private async buildLocations(): Promise<LocationGroup[]> {
+    const raw = await this.repository.aggregateLocations();
+    return raw
+      .filter((r) => r.city)
+      .map((r) => {
+        // dedupe de bairros case-insensitive, mantendo a primeira grafia
+        const seen = new Map<string, string>();
+        for (const b of r.bairros) {
+          const name = String(b ?? '').trim();
+          if (!name) continue;
+          const key = normalize(name);
+          if (!seen.has(key)) seen.set(key, name);
+        }
+        const neighborhoods = Array.from(seen.values()).sort((a, b) =>
+          a.localeCompare(b, 'pt-BR'),
+        );
+        return { city: r.city, uf: r.uf, neighborhoods };
+      })
+      .sort((a, b) => a.city.localeCompare(b.city, 'pt-BR'));
   }
 
   @Cron('0 4 * * *')
@@ -31,6 +90,9 @@ export class RealEstateService {
     const result = await this.syncColigadas();
     this.logger.log(
       `Sync diário concluído: upserts=${result.upserts} deleted=${result.deleted} errors=${result.errors}`,
+    );
+    await this.refreshLocationsCache().catch((err) =>
+      this.logger.warn(`Falha ao atualizar cache de localizações: ${err?.message ?? err}`),
     );
   }
 

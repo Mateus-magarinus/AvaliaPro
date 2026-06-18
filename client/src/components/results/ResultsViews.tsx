@@ -2,13 +2,24 @@
 
 import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
-import { ChevronLeft, ChevronRight, Download, ExternalLink, FileSpreadsheet, ImageIcon, Pencil, MapPin, Save, Table2, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, Download, ExternalLink, FileSpreadsheet, GripVertical, ImageIcon, Pencil, MapPin, Save, SlidersHorizontal, Table2, X } from "lucide-react";
 import MapView, { MapPoint } from "./MapView";
 import { apiFetch } from "@/lib/api";
 import { getAccessToken } from "@/lib/auth";
-import { EvaluationRecord, PropertyRecord } from "@/types/avaliapro";
+import { ColumnPref, ColumnPreferencesResponse, EvaluationRecord, PropertyRecord } from "@/types/avaliapro";
 
 type Tab = "table" | "details" | "map";
+
+const DEFAULT_COLUMNS: ColumnPref[] = [
+  { columnKey: "city", label: "Município", visible: true, order: 0 },
+  { columnKey: "neighborhood", label: "Bairro", visible: true, order: 1 },
+  { columnKey: "address", label: "Endereço", visible: true, order: 2 },
+  { columnKey: "totalValue", label: "Valor total", visible: true, order: 3 },
+  { columnKey: "totalArea", label: "Área", visible: true, order: 4 },
+  { columnKey: "bedrooms", label: "Quartos", visible: true, order: 5 },
+  { columnKey: "ibgeIncome", label: "Renda IBGE", visible: true, order: 6 },
+  { columnKey: "contactLink", label: "Link", visible: true, order: 7 },
+];
 
 function numberValue(value: number | string | null | undefined) {
   const n = typeof value === "number" ? value : Number(value);
@@ -86,6 +97,51 @@ function propertyTitle(property: PropertyRecord) {
   return property.description || [property.neighborhood, property.city].filter(Boolean).join(" - ") || `Imóvel ${property.id}`;
 }
 
+function renderCell(key: string, property: PropertyRecord): ReactNode {
+  switch (key) {
+    case "city":
+      return property.city;
+    case "neighborhood":
+      return property.neighborhood || "-";
+    case "address":
+      return property.address;
+    case "totalValue":
+      return formatMoney(property.totalValue);
+    case "unitValue":
+      return formatMoney(property.unitValue);
+    case "totalArea":
+      return formatNumber(property.totalArea, " m²");
+    case "bedrooms":
+      return property.bedrooms ?? "-";
+    case "bathrooms":
+      return property.bathrooms ?? "-";
+    case "garageSpots":
+      return property.garageSpots ?? "-";
+    case "ibgeIncome":
+      return formatMoney(property.ibgeIncome);
+    case "latitude":
+      return property.latitude ?? "-";
+    case "longitude":
+      return property.longitude ?? "-";
+    case "contactLink":
+      return property.contactLink ? (
+        <a
+          href={property.contactLink}
+          target="_blank"
+          rel="noreferrer"
+          onClick={(event) => event.stopPropagation()}
+          className="inline-flex items-center gap-1 font-medium text-[#062650]"
+        >
+          Abrir <ExternalLink className="h-3 w-3" />
+        </a>
+      ) : (
+        "-"
+      );
+    default:
+      return "-";
+  }
+}
+
 type PropertyEditForm = {
   city: string;
   neighborhood: string;
@@ -151,6 +207,39 @@ export default function ResultsViews({
   const [tab, setTab] = useState<Tab>("table");
   const [selectedId, setSelectedId] = useState<number | null>(properties[0]?.id ?? null);
   const [exportingXlsx, setExportingXlsx] = useState(false);
+  const [columns, setColumns] = useState<ColumnPref[]>(DEFAULT_COLUMNS);
+  const [columnsPanelOpen, setColumnsPanelOpen] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    apiFetch<ColumnPreferencesResponse>("/column-preferences")
+      .then((data) => {
+        if (!cancelled && data?.columns?.length) setColumns(data.columns);
+      })
+      .catch(() => {
+        // mantém colunas padrão
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const visibleColumns = useMemo(
+    () => columns.filter((c) => c.visible).sort((a, b) => a.order - b.order),
+    [columns],
+  );
+
+  async function saveColumns(next: ColumnPref[]) {
+    setColumns(next);
+    try {
+      await apiFetch<ColumnPreferencesResponse>("/column-preferences", {
+        method: "PUT",
+        body: { columns: next.map((c, idx) => ({ columnKey: c.columnKey, visible: c.visible, order: idx })) },
+      });
+    } catch {
+      // falha de persistência não quebra a UI
+    }
+  }
 
   const selected = useMemo(
     () => properties.find((property) => property.id === selectedId) ?? properties[0] ?? null,
@@ -247,6 +336,13 @@ export default function ResultsViews({
         </div>
         <div className="flex gap-2">
           <button
+            onClick={() => setColumnsPanelOpen(true)}
+            className="inline-flex items-center justify-center gap-2 rounded-md border border-[#062650] px-4 py-3 text-sm font-semibold text-[#062650]"
+          >
+            <SlidersHorizontal className="h-4 w-4" />
+            Colunas
+          </button>
+          <button
             onClick={exportXlsx}
             disabled={!properties.length || exportingXlsx}
             className="inline-flex items-center justify-center gap-2 rounded-md bg-[#062650] px-4 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
@@ -291,55 +387,46 @@ export default function ResultsViews({
           <>
             {tab === "table" && (
               <div className="overflow-x-auto">
-                <table className="min-w-full border-separate border-spacing-y-2 text-left text-sm">
-                  <thead>
-                    <tr className="text-[#062650]">
-                      <th className="px-3 py-2">ID</th>
-                      <th className="px-3 py-2">Município</th>
-                      <th className="px-3 py-2">Bairro</th>
-                      <th className="px-3 py-2">Endereço</th>
-                      <th className="px-3 py-2">Valor</th>
-                      <th className="px-3 py-2">Área</th>
-                      <th className="px-3 py-2">Quartos</th>
-                      <th className="px-3 py-2">Link</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {properties.map((property) => (
-                      <tr
-                        key={property.id}
-                        onClick={() => {
-                          setSelectedId(property.id);
-                          setTab("details");
-                        }}
-                        className="cursor-pointer rounded-lg bg-slate-50 text-slate-700 hover:bg-[#dff0f5]"
-                      >
-                        <td className="rounded-l-lg px-3 py-4 font-semibold text-[#062650]">{property.id}</td>
-                        <td className="px-3 py-4">{property.city}</td>
-                        <td className="px-3 py-4">{property.neighborhood || "-"}</td>
-                        <td className="px-3 py-4">{property.address}</td>
-                        <td className="px-3 py-4">{formatMoney(property.totalValue)}</td>
-                        <td className="px-3 py-4">{formatNumber(property.totalArea, " m²")}</td>
-                        <td className="px-3 py-4">{property.bedrooms ?? "-"}</td>
-                        <td className="rounded-r-lg px-3 py-4">
-                          {property.contactLink ? (
-                            <a
-                              href={property.contactLink}
-                              target="_blank"
-                              rel="noreferrer"
-                              onClick={(event) => event.stopPropagation()}
-                              className="inline-flex items-center gap-1 font-medium text-[#062650]"
-                            >
-                              Abrir <ExternalLink className="h-3 w-3" />
-                            </a>
-                          ) : (
-                            "-"
-                          )}
-                        </td>
+                {visibleColumns.length === 0 ? (
+                  <div className="grid min-h-[180px] place-items-center rounded-lg bg-slate-50 text-sm text-slate-500">
+                    Nenhuma coluna selecionada. Use o botão <b className="mx-1">Colunas</b> para escolher.
+                  </div>
+                ) : (
+                  <table className="min-w-full border-separate border-spacing-y-2 text-left text-sm">
+                    <thead>
+                      <tr className="text-[#062650]">
+                        <th className="px-3 py-2">ID</th>
+                        {visibleColumns.map((col) => (
+                          <th key={col.columnKey} className="px-3 py-2">
+                            {col.label}
+                          </th>
+                        ))}
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {properties.map((property) => (
+                        <tr
+                          key={property.id}
+                          onClick={() => {
+                            setSelectedId(property.id);
+                            setTab("details");
+                          }}
+                          className="cursor-pointer rounded-lg bg-slate-50 text-slate-700 hover:bg-[#dff0f5]"
+                        >
+                          <td className="rounded-l-lg px-3 py-4 font-semibold text-[#062650]">{property.id}</td>
+                          {visibleColumns.map((col, index) => (
+                            <td
+                              key={col.columnKey}
+                              className={["px-3 py-4", index === visibleColumns.length - 1 ? "rounded-r-lg" : ""].join(" ")}
+                            >
+                              {renderCell(col.columnKey, property)}
+                            </td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
               </div>
             )}
 
@@ -352,11 +439,130 @@ export default function ResultsViews({
               />
             )}
 
-            {tab === "map" && <MapView points={mapPoints} />}
+            {tab === "map" && (
+              <MapView
+                points={mapPoints}
+                onOpenProperty={(id) => {
+                  setSelectedId(Number(id));
+                  setTab("details");
+                }}
+              />
+            )}
           </>
         )}
       </div>
+
+      {columnsPanelOpen && (
+        <ColumnsPanel
+          columns={columns}
+          onClose={() => setColumnsPanelOpen(false)}
+          onSave={(next) => {
+            saveColumns(next);
+            setColumnsPanelOpen(false);
+          }}
+        />
+      )}
     </section>
+  );
+}
+
+function ColumnsPanel({
+  columns,
+  onClose,
+  onSave,
+}: {
+  columns: ColumnPref[];
+  onClose: () => void;
+  onSave: (next: ColumnPref[]) => void;
+}) {
+  const [draft, setDraft] = useState<ColumnPref[]>(
+    () => [...columns].sort((a, b) => a.order - b.order),
+  );
+  const [dragIndex, setDragIndex] = useState<number | null>(null);
+
+  function toggle(key: string) {
+    setDraft((current) =>
+      current.map((c) => (c.columnKey === key ? { ...c, visible: !c.visible } : c)),
+    );
+  }
+
+  function reorder(from: number, to: number) {
+    setDraft((current) => {
+      if (from === to) return current;
+      const next = [...current];
+      const [moved] = next.splice(from, 1);
+      next.splice(to, 0, moved);
+      return next.map((c, idx) => ({ ...c, order: idx }));
+    });
+  }
+
+  const visibleCount = draft.filter((c) => c.visible).length;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
+      <div
+        className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className="mb-1 flex items-center justify-between">
+          <h2 className="text-lg font-bold text-[#062650]">Personalizar colunas</h2>
+          <button onClick={onClose} className="rounded-md p-1 text-slate-400 hover:text-slate-600" aria-label="Fechar">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+        <p className="mb-4 text-xs text-slate-500">
+          Marque as colunas visíveis e arraste para reordenar. {visibleCount} selecionada{visibleCount !== 1 ? "s" : ""}.
+        </p>
+
+        <ul className="max-h-[55vh] space-y-1.5 overflow-y-auto">
+          {draft.map((col, index) => (
+            <li
+              key={col.columnKey}
+              draggable
+              onDragStart={() => setDragIndex(index)}
+              onDragOver={(event) => {
+                event.preventDefault();
+                if (dragIndex !== null && dragIndex !== index) {
+                  reorder(dragIndex, index);
+                  setDragIndex(index);
+                }
+              }}
+              onDragEnd={() => setDragIndex(null)}
+              className={[
+                "flex items-center gap-3 rounded-md border px-3 py-2.5 transition",
+                dragIndex === index ? "border-[#062650] bg-[#e8f5f8]" : "border-slate-200 bg-white",
+              ].join(" ")}
+            >
+              <GripVertical className="h-4 w-4 cursor-grab text-slate-400" />
+              <label className="flex flex-1 cursor-pointer items-center gap-2.5">
+                <input
+                  type="checkbox"
+                  checked={col.visible}
+                  onChange={() => toggle(col.columnKey)}
+                  className="h-4 w-4 accent-[#062650]"
+                />
+                <span className="text-sm font-medium text-[#062650]">{col.label}</span>
+              </label>
+            </li>
+          ))}
+        </ul>
+
+        <div className="mt-5 flex gap-3">
+          <button
+            onClick={onClose}
+            className="flex-1 rounded-md border border-slate-300 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+          >
+            Cancelar
+          </button>
+          <button
+            onClick={() => onSave(draft.map((c, idx) => ({ ...c, order: idx })))}
+            className="flex-1 rounded-md bg-[#062650] py-2.5 text-sm font-semibold text-white hover:opacity-90"
+          >
+            Aplicar
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 
