@@ -3,6 +3,7 @@ import { PropertyRepository } from '../property.repository';
 import { Property } from '../../common/models/property.entity';
 import { RealEstateItem } from '../../evaluations/interfaces/evaluations.ports';
 import { IbgeService } from '../../ibge/ibge.service';
+import { CensusService } from '../../census/census.service';
 
 type Paginated<T> = { items: T[]; total: number; page: number; limit: number };
 
@@ -34,53 +35,92 @@ export class PropertyService {
   constructor(
     private readonly propertyRepo: PropertyRepository,
     private readonly ibgeService: IbgeService,
+    private readonly censusService: CensusService,
   ) { }
 
   /**
-   * Popula `ibgeIncome` (salário médio mensal do município) nas propriedades da
-   * avaliação. Agrupa por município para minimizar chamadas ao IBGE (cacheadas).
-   * Só atualiza propriedades que ainda não têm renda definida.
-   * Tolerante a falhas — nunca lança.
+   * Popula a renda nas propriedades da avaliação em DOIS campos:
+   *  - `ibgeIncome`   = renda média do MUNICÍPIO (baseline, sempre disponível);
+   *  - `sectorIncome` = renda do SETOR CENSITÁRIO (Censo 2022) pela lat/long,
+   *                     quando há dataset de setores carregado (senão fica nulo).
+   * Sem force, só processa imóveis ainda sem renda municipal. Nunca lança.
    */
   async enrichWithIbge(
     evaluationId: string | number,
     fallbackState = 'RS',
-  ): Promise<{ updated: number }> {
+    force = false,
+  ): Promise<{ updated: number; bySetor: number; byMunicipio: number }> {
     try {
       const [items] = await this.propertyRepo.findAndCount({
         where: { evaluation: { id: evaluationId } } as any,
         take: 1000,
       });
 
-      const pending = items.filter(
-        (p) => p.ibgeIncome == null || Number(p.ibgeIncome) === 0,
-      );
-      if (!pending.length) return { updated: 0 };
+      const pending = force
+        ? items
+        : items.filter((p) => p.ibgeIncome == null || Number(p.ibgeIncome) === 0);
+      if (!pending.length) return { updated: 0, bySetor: 0, byMunicipio: 0 };
 
-      // Agrupa ids por cidade (estado da avaliação é o mesmo para todos)
-      const byCity = new Map<string, number[]>();
+      // Agrupa propriedades por cidade (resolução de município é cacheada por cidade)
+      const byCity = new Map<string, typeof pending>();
       for (const p of pending) {
         const city = (p.city ?? '').trim();
         if (!city) continue;
         const arr = byCity.get(city) ?? [];
-        arr.push(p.id);
+        arr.push(p);
         byCity.set(city, arr);
       }
 
-      let updated = 0;
-      for (const [city, ids] of byCity) {
-        const income = await this.ibgeService.getAverageIncome(city, fallbackState);
-        if (income == null) continue;
-        updated += await this.propertyRepo.setIbgeIncomeForIds(ids, income);
+      const municipalIdsByIncome = new Map<number, number[]>();
+      const sectorIdsByIncome = new Map<number, number[]>();
+      let byMunicipio = 0;
+      let bySetor = 0;
+
+      for (const [city, props] of byCity) {
+        const municipioCode = await this.ibgeService.resolveMunicipalityCode(city, fallbackState);
+        const municipalIncome = await this.ibgeService.getAverageIncome(city, fallbackState);
+
+        for (const p of props) {
+          // Campo 1: renda do município (mesma p/ todos os imóveis da cidade)
+          if (municipalIncome != null) {
+            const arr = municipalIdsByIncome.get(municipalIncome) ?? [];
+            arr.push(p.id);
+            municipalIdsByIncome.set(municipalIncome, arr);
+            byMunicipio++;
+          }
+
+          // Campo 2: renda do setor censitário (por coordenada)
+          if (municipioCode) {
+            const tract = await this.censusService.getIncomeForPoint(
+              p.latitude as any,
+              p.longitude as any,
+              municipioCode,
+            );
+            if (tract != null) {
+              const arr = sectorIdsByIncome.get(tract) ?? [];
+              arr.push(p.id);
+              sectorIdsByIncome.set(tract, arr);
+              bySetor++;
+            }
+          }
+        }
       }
 
-      if (updated) {
-        this.logger.log(`IBGE: ${updated} propriedades enriquecidas na avaliação ${evaluationId}`);
+      let updated = 0;
+      for (const [income, ids] of municipalIdsByIncome) {
+        updated += await this.propertyRepo.setIbgeIncomeForIds(ids, income);
       }
-      return { updated };
+      for (const [income, ids] of sectorIdsByIncome) {
+        await this.propertyRepo.setSectorIncomeForIds(ids, income);
+      }
+
+      this.logger.log(
+        `Renda: avaliação ${evaluationId} — município=${byMunicipio}, setor=${bySetor}`,
+      );
+      return { updated, bySetor, byMunicipio };
     } catch (err) {
-      this.logger.warn(`Falha ao enriquecer avaliação ${evaluationId} com IBGE: ${(err as Error).message}`);
-      return { updated: 0 };
+      this.logger.warn(`Falha ao enriquecer avaliação ${evaluationId} com renda: ${(err as Error).message}`);
+      return { updated: 0, bySetor: 0, byMunicipio: 0 };
     }
   }
 

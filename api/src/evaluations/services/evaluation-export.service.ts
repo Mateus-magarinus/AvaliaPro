@@ -17,7 +17,8 @@ const COLUMNS = [
   { header: 'Área (m²)', key: 'totalArea', width: 12 },
   { header: 'Valor total (R$)', key: 'totalValue', width: 18 },
   { header: 'Valor/m² (R$)', key: 'unitValue', width: 16 },
-  { header: 'Renda IBGE (R$)', key: 'ibgeIncome', width: 18 },
+  { header: 'Renda município (R$)', key: 'ibgeIncome', width: 20 },
+  { header: 'Renda setor (R$)', key: 'sectorIncome', width: 18 },
   { header: 'Latitude', key: 'latitude', width: 14 },
   { header: 'Longitude', key: 'longitude', width: 14 },
   { header: 'Link', key: 'contactLink', width: 40 },
@@ -89,6 +90,7 @@ export class EvaluationExportService {
         totalValue: prop.totalValue ? Number(prop.totalValue) : null,
         unitValue: prop.unitValue ? Number(prop.unitValue) : null,
         ibgeIncome: prop.ibgeIncome ? Number(prop.ibgeIncome) : null,
+        sectorIncome: prop.sectorIncome ? Number(prop.sectorIncome) : null,
         latitude: prop.latitude ? Number(prop.latitude) : null,
         longitude: prop.longitude ? Number(prop.longitude) : null,
         contactLink: prop.contactLink ?? '',
@@ -103,7 +105,7 @@ export class EvaluationExportService {
 
       // Formatos numéricos
       const currency = '#,##0.00';
-      (['totalArea', 'totalValue', 'unitValue', 'ibgeIncome'] as const).forEach((key) => {
+      (['totalArea', 'totalValue', 'unitValue', 'ibgeIncome', 'sectorIncome'] as const).forEach((key) => {
         const colIndex = COLUMNS.findIndex((c) => c.key === key) + 1;
         if (colIndex > 0) row.getCell(colIndex).numFmt = currency;
       });

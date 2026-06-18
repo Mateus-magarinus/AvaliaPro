@@ -25,8 +25,13 @@ export class Property extends AbstractEntity<Property> {
   @Column({ type: 'decimal', precision: 10, scale: 6, nullable: true })
   longitude: number;
 
+  /** Renda média do MUNICÍPIO (IBGE/agregados). Baseline sempre disponível. */
   @Column({ type: 'decimal', precision: 10, scale: 2, nullable: true })
   ibgeIncome: number;
+
+  /** Renda média do SETOR CENSITÁRIO (Censo 2022) pela coordenada. Pode ser nulo. */
+  @Column({ type: 'decimal', precision: 10, scale: 2, nullable: true })
+  sectorIncome: number;
 
   @Column({ type: 'int', nullable: true })
   bedrooms: number;

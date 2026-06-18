@@ -2,11 +2,11 @@
 
 import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
-import { ChevronLeft, ChevronRight, Download, ExternalLink, FileSpreadsheet, GripVertical, ImageIcon, Pencil, MapPin, Save, SlidersHorizontal, Table2, X } from "lucide-react";
+import { CheckCircle2, ChevronLeft, ChevronRight, Download, ExternalLink, FileSpreadsheet, GripVertical, ImageIcon, Pencil, MapPin, RotateCcw, Save, SlidersHorizontal, Table2, X } from "lucide-react";
 import MapView, { MapPoint } from "./MapView";
 import { apiFetch } from "@/lib/api";
 import { getAccessToken } from "@/lib/auth";
-import { ColumnPref, ColumnPreferencesResponse, EvaluationRecord, PropertyRecord } from "@/types/avaliapro";
+import { ColumnPref, ColumnPreferencesResponse, EvaluationRecord, EvaluationStatus, PropertyRecord } from "@/types/avaliapro";
 
 type Tab = "table" | "details" | "map";
 
@@ -17,8 +17,9 @@ const DEFAULT_COLUMNS: ColumnPref[] = [
   { columnKey: "totalValue", label: "Valor total", visible: true, order: 3 },
   { columnKey: "totalArea", label: "Área", visible: true, order: 4 },
   { columnKey: "bedrooms", label: "Quartos", visible: true, order: 5 },
-  { columnKey: "ibgeIncome", label: "Renda IBGE", visible: true, order: 6 },
-  { columnKey: "contactLink", label: "Link", visible: true, order: 7 },
+  { columnKey: "ibgeIncome", label: "Renda município", visible: true, order: 6 },
+  { columnKey: "sectorIncome", label: "Renda setor", visible: true, order: 7 },
+  { columnKey: "contactLink", label: "Link", visible: true, order: 8 },
 ];
 
 function numberValue(value: number | string | null | undefined) {
@@ -119,6 +120,8 @@ function renderCell(key: string, property: PropertyRecord): ReactNode {
       return property.garageSpots ?? "-";
     case "ibgeIncome":
       return formatMoney(property.ibgeIncome);
+    case "sectorIncome":
+      return formatMoney(property.sectorIncome);
     case "latitude":
       return property.latitude ?? "-";
     case "longitude":
@@ -199,16 +202,31 @@ export default function ResultsViews({
   evaluation,
   properties,
   onPropertyUpdated,
+  onStatusChanged,
 }: {
   evaluation: EvaluationRecord;
   properties: PropertyRecord[];
   onPropertyUpdated?: (property: PropertyRecord) => void;
+  onStatusChanged?: (status: EvaluationStatus) => void;
 }) {
   const [tab, setTab] = useState<Tab>("table");
   const [selectedId, setSelectedId] = useState<number | null>(properties[0]?.id ?? null);
   const [exportingXlsx, setExportingXlsx] = useState(false);
   const [columns, setColumns] = useState<ColumnPref[]>(DEFAULT_COLUMNS);
   const [columnsPanelOpen, setColumnsPanelOpen] = useState(false);
+  const [statusSaving, setStatusSaving] = useState(false);
+
+  async function changeStatus(action: "confirm" | "reopen") {
+    try {
+      setStatusSaving(true);
+      await apiFetch(`/evaluations/${evaluation.id}/${action}`, { method: "POST" });
+      onStatusChanged?.(action === "confirm" ? "confirmed" : "draft");
+    } catch {
+      // silencioso
+    } finally {
+      setStatusSaving(false);
+    }
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -293,6 +311,8 @@ export default function ResultsViews({
       "Area total",
       "Valor total",
       "Valor por m2",
+      "Renda municipio",
+      "Renda setor",
       "Latitude",
       "Longitude",
       "Link",
@@ -309,6 +329,8 @@ export default function ResultsViews({
       property.totalArea,
       property.totalValue,
       property.unitValue,
+      property.ibgeIncome,
+      property.sectorIncome,
       property.latitude,
       property.longitude,
       property.contactLink,
@@ -328,13 +350,35 @@ export default function ResultsViews({
     <section className="space-y-8">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <p className="text-sm font-medium text-slate-500">Avaliação #{evaluation.id}</p>
+          <div className="flex items-center gap-3">
+            <p className="text-sm font-medium text-slate-500">Avaliação #{evaluation.id}</p>
+            <StatusBadge status={evaluation.status} />
+          </div>
           <h1 className="mt-1 text-3xl font-semibold text-[#062650]">{evaluation.name}</h1>
           <p className="mt-2 text-sm text-slate-600">
             {[evaluation.propertyType, evaluation.neighborhood, evaluation.city, evaluation.state].filter(Boolean).join(" - ")}
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
+          {evaluation.status === "confirmed" ? (
+            <button
+              onClick={() => changeStatus("reopen")}
+              disabled={statusSaving}
+              className="inline-flex items-center justify-center gap-2 rounded-md border border-[#062650] px-4 py-3 text-sm font-semibold text-[#062650] disabled:opacity-50"
+            >
+              <RotateCcw className="h-4 w-4" />
+              Reabrir
+            </button>
+          ) : (
+            <button
+              onClick={() => changeStatus("confirm")}
+              disabled={statusSaving}
+              className="inline-flex items-center justify-center gap-2 rounded-md bg-emerald-600 px-4 py-3 text-sm font-semibold text-white disabled:opacity-50"
+            >
+              <CheckCircle2 className="h-4 w-4" />
+              {statusSaving ? "Salvando..." : "Finalizar"}
+            </button>
+          )}
           <button
             onClick={() => setColumnsPanelOpen(true)}
             className="inline-flex items-center justify-center gap-2 rounded-md border border-[#062650] px-4 py-3 text-sm font-semibold text-[#062650]"
@@ -566,6 +610,20 @@ function ColumnsPanel({
   );
 }
 
+function StatusBadge({ status }: { status: EvaluationStatus }) {
+  const map: Record<EvaluationStatus, { label: string; cls: string }> = {
+    draft: { label: "Em progresso", cls: "border border-[#062650] text-[#062650]" },
+    confirmed: { label: "Finalizada", cls: "bg-emerald-600 text-white" },
+    archived: { label: "Arquivada", cls: "bg-slate-400 text-white" },
+  };
+  const s = map[status] ?? map.draft;
+  return (
+    <span className={["rounded-full px-2.5 py-0.5 text-xs font-semibold", s.cls].join(" ")}>
+      {s.label}
+    </span>
+  );
+}
+
 function TabButton({
   active,
   children,
@@ -794,7 +852,8 @@ function PropertyDetails({
             <Info label="Município" value={property.city} />
             <Info label="Bairro" value={property.neighborhood || "-"} />
             <Info label="Endereço" value={property.address} />
-            <Info label="Renda IBGE" value={formatMoney(property.ibgeIncome)} />
+            <Info label="Renda município" value={formatMoney(property.ibgeIncome)} />
+            <Info label="Renda setor" value={formatMoney(property.sectorIncome)} />
             <Info label="Quartos" value={property.bedrooms ?? "-"} />
             <Info label="Banheiros" value={property.bathrooms ?? "-"} />
             <Info label="Garagem" value={property.garageSpots ?? "-"} />

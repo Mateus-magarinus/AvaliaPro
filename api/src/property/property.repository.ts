@@ -187,13 +187,25 @@ export class PropertyRepository extends AbstractRepository<Property> {
     return this.propertyRepository.find(options);
   }
 
-  /** Atualiza ibgeIncome de várias propriedades por ID (usado no enriquecimento IBGE). */
+  /** Atualiza ibgeIncome (renda do município) de várias propriedades por ID. */
   async setIbgeIncomeForIds(ids: number[], income: number): Promise<number> {
     if (!ids.length) return 0;
     const res = await this.propertyRepository
       .createQueryBuilder()
       .update(Property)
       .set({ ibgeIncome: income })
+      .whereInIds(ids)
+      .execute();
+    return res.affected ?? 0;
+  }
+
+  /** Atualiza sectorIncome (renda do setor censitário) de várias propriedades por ID. */
+  async setSectorIncomeForIds(ids: number[], income: number): Promise<number> {
+    if (!ids.length) return 0;
+    const res = await this.propertyRepository
+      .createQueryBuilder()
+      .update(Property)
+      .set({ sectorIncome: income })
       .whereInIds(ids)
       .execute();
     return res.affected ?? 0;

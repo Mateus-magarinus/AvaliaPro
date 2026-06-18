@@ -217,7 +217,7 @@ function EvaluationHistoryCard({ evaluation, onEdit }: { evaluation: EvaluationR
       </div>
 
       <button onClick={onEdit} className="inline-flex h-10 min-w-24 items-center justify-center rounded-md bg-[#062650] px-5 text-sm font-bold text-white">
-        Editar
+        {evaluation.status === "draft" ? "Editar" : "Abrir"}
       </button>
     </article>
   );

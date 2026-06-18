@@ -100,13 +100,23 @@ export class EvaluationsController {
     return this.service.confirmMy(userId, id);
   }
 
-  @Post(':id/enrich-ibge')
-  async enrichIbge(
+  @Post(':id/reopen')
+  async reopenMy(
     @Param('id', ParseIntPipe) id: number,
     @CurrentUser() user: any,
   ) {
     const userId = user?.id ?? user?.userId ?? user?.sub;
-    return this.service.enrichIbge(userId, id);
+    return this.service.reopenMy(userId, id);
+  }
+
+  @Post(':id/enrich-ibge')
+  async enrichIbge(
+    @Param('id', ParseIntPipe) id: number,
+    @CurrentUser() user: any,
+    @Query('force', new ParseBoolPipe({ optional: true })) force?: boolean,
+  ) {
+    const userId = user?.id ?? user?.userId ?? user?.sub;
+    return this.service.enrichIbge(userId, id, !!force);
   }
 
   @Get(':id/export')

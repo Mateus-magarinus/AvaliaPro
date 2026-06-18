@@ -204,9 +204,23 @@ export class EvaluationsService {
     return (this.evaluationsRepo as any).create(evaluation as Evaluation);
   }
 
-  async enrichIbge(userId: string | number, evaluationId: string | number) {
+  async enrichIbge(userId: string | number, evaluationId: string | number, force = false) {
     const evaluation = await this.getMyById(userId, evaluationId);
-    return this.propertiesService.enrichWithIbge(evaluation.id, evaluation.state ?? 'RS');
+    return this.propertiesService.enrichWithIbge(evaluation.id, evaluation.state ?? 'RS', force);
+  }
+
+  async reopenMy(userId: string | number, evaluationId: string | number) {
+    const evaluation = await this.getMyById(userId, evaluationId);
+    evaluation.status = 'draft';
+
+    if ((this.evaluationsRepo as any).save) {
+      return (this.evaluationsRepo as any).save(evaluation);
+    }
+    if ((this.evaluationsRepo as any).update) {
+      await (this.evaluationsRepo as any).update({ id: evaluation.id } as any, { status: 'draft' });
+      return this.getMyById(userId, evaluationId);
+    }
+    return (this.evaluationsRepo as any).create(evaluation as Evaluation);
   }
 
   async archiveMy(userId: string | number, evaluationId: string | number) {

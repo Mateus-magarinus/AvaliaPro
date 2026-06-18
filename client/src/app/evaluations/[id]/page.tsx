@@ -7,7 +7,7 @@ import { ArrowLeft, Loader2, LogOut, PlayCircle } from "lucide-react";
 import ResultsViews from "@/components/results/ResultsViews";
 import { apiFetch, ApiError } from "@/lib/api";
 import { clearAccessToken, getAccessToken } from "@/lib/auth";
-import { EvaluationRecord, Paginated, PropertyRecord } from "@/types/avaliapro";
+import { EvaluationRecord, EvaluationStatus, Paginated, PropertyRecord } from "@/types/avaliapro";
 
 export default function EvaluationResultsPage() {
   const params = useParams<{ id: string }>();
@@ -57,6 +57,10 @@ export default function EvaluationResultsPage() {
     );
   }
 
+  function handleStatusChanged(status: EvaluationStatus) {
+    setEvaluation((current) => (current ? { ...current, status } : current));
+  }
+
   return (
     <main className="min-h-screen bg-white text-slate-900">
       <header className="border-b border-slate-200 bg-white">
@@ -90,7 +94,12 @@ export default function EvaluationResultsPage() {
         ) : error ? (
           <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
         ) : evaluation ? (
-          <ResultsViews evaluation={evaluation} properties={properties} onPropertyUpdated={handlePropertyUpdated} />
+          <ResultsViews
+            evaluation={evaluation}
+            properties={properties}
+            onPropertyUpdated={handlePropertyUpdated}
+            onStatusChanged={handleStatusChanged}
+          />
         ) : null}
       </div>
     </main>

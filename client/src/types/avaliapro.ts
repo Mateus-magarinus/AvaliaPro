@@ -15,6 +15,7 @@ export type PropertyRecord = {
   latitude?: number | string | null;
   longitude?: number | string | null;
   ibgeIncome?: number | string | null;
+  sectorIncome?: number | string | null;
   bedrooms?: number | null;
   bathrooms?: number | null;
   garageSpots?: number | null;

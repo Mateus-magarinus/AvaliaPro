@@ -11,6 +11,7 @@ import { PlansModule } from './plans/plans.module';
 import { AdminModule } from './admin/admin.module';
 import { CacheModule } from './cache/cache.module';
 import { IbgeModule } from './ibge/ibge.module';
+import { CensusModule } from './census/census.module';
 import { GeoModule } from './geo/geo.module';
 import { ColumnPreferencesModule } from './column-preferences/column-preferences.module';
 
@@ -47,6 +48,8 @@ import { ColumnPreferencesModule } from './column-preferences/column-preferences
         IBGE_TIMEOUT_MS: Joi.number().default(8000),
         IBGE_CACHE_TTL_DAYS: Joi.number().default(30),
 
+        CENSUS_DATA_PATH: Joi.string().optional().allow(''),
+
         OVERPASS_URL: Joi.string().uri().default('https://overpass-api.de/api/interpreter'),
         OVERPASS_TIMEOUT_MS: Joi.number().default(15000),
         GEO_CACHE_TTL_HOURS: Joi.number().default(24),
@@ -63,6 +66,7 @@ import { ColumnPreferencesModule } from './column-preferences/column-preferences
     AdminModule,
     CacheModule,
     IbgeModule,
+    CensusModule,
     GeoModule,
     ColumnPreferencesModule,
   ],

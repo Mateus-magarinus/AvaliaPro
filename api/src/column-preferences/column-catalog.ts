@@ -12,7 +12,8 @@ export const COLUMN_CATALOG = [
   { key: 'bedrooms', label: 'Quartos' },
   { key: 'bathrooms', label: 'Banheiros' },
   { key: 'garageSpots', label: 'Garagem' },
-  { key: 'ibgeIncome', label: 'Renda IBGE' },
+  { key: 'ibgeIncome', label: 'Renda município' },
+  { key: 'sectorIncome', label: 'Renda setor' },
   { key: 'latitude', label: 'Latitude' },
   { key: 'longitude', label: 'Longitude' },
   { key: 'contactLink', label: 'Link' },
@@ -29,5 +30,6 @@ export const DEFAULT_VISIBLE_KEYS = new Set([
   'totalArea',
   'bedrooms',
   'ibgeIncome',
+  'sectorIncome',
   'contactLink',
 ]);
