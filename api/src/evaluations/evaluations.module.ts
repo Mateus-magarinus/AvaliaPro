@@ -1,17 +1,32 @@
-import { Module } from '@nestjs/common';
-import { EvaluationsService } from './services/evaluations.service';
+import { forwardRef, Module } from '@nestjs/common';
+import { TypeOrmModule } from '@nestjs/typeorm';
+
+import { Evaluation } from '../common/models/evaluation.entity';
+
 import { EvaluationsController } from './evaluations.controller';
+import { EvaluationsService } from './services/evaluations.service';
+import { EvaluationExportService } from './services/evaluation-export.service';
 import { EvaluationsRepository } from './evaluations.repository';
-import { DatabaseModule, Evaluation, Property } from '@common';
-import { RealEstateModule } from 'src/real-estate/real-estate.module';
+
+import { PropertyModule } from '../property/property.module';
+import { RealEstateModule } from '../real-estate/real-estate.module';
+import { AuthModule } from '../auth/auth.module';
+import { PlansModule } from '../plans/plans.module';
 
 @Module({
   imports: [
-    DatabaseModule.forFeature([Evaluation, Property]),
+    TypeOrmModule.forFeature([Evaluation]),
+    PropertyModule,
     RealEstateModule,
+    forwardRef(() => AuthModule),
+    PlansModule,
   ],
   controllers: [EvaluationsController],
-  providers: [EvaluationsService, EvaluationsRepository],
-  exports: [EvaluationsService],
+  providers: [
+    EvaluationsService,
+    EvaluationExportService,
+    EvaluationsRepository,
+  ],
+  exports: [EvaluationsService, EvaluationExportService, EvaluationsRepository],
 })
 export class EvaluationsModule {}

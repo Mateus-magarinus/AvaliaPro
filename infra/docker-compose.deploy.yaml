@@ -1,0 +1,173 @@
+name: avaliapro
+
+services:
+  api:
+    image: mateusseaiot/avaliapro:v1.0.0-api
+    pull_policy: always
+    environment:
+      NODE_ENV: production
+      HTTP_PORT: 3000
+
+      DATABASE_HOST: postgres
+      DATABASE_PORT: 5432
+      DATABASE_USER: ${DATABASE_USER:-avaliapro}
+      DATABASE_PASSWORD: ${DATABASE_PASSWORD:-avaliapro_dev_password}
+      DATABASE_NAME: ${DATABASE_NAME:-avaliapro}
+      DATABASE_SYNC: ${DATABASE_SYNC:-true}
+      DATABASE_LOGGING: ${DATABASE_LOGGING:-true}
+
+      MONGODB_URI: mongodb://${MONGO_INITDB_ROOT_USERNAME:-avaliapro}:${MONGO_INITDB_ROOT_PASSWORD:-avaliapro_mongo_password}@mongo:27017/${MONGO_INITDB_DATABASE:-avaliapro}?authSource=admin
+
+      JWT_SECRET: ${JWT_SECRET:-change-me-dev-test-jwt-secret-32-chars}
+      JWT_EXPIRATION: ${JWT_EXPIRATION:-43200}
+
+      API_IMOVEIS_LIST: ${API_IMOVEIS_LIST:-https://www.coligadas.com.br/api/imoveis?operacao=vendas&uf=rs,pr&ordem=1&limite=40&idimob=1&rede=1}
+      API_IMOVEL_DETAIL: ${API_IMOVEL_DETAIL:-https://www.coligadas.com.br/api/imovel}
+      API_COLIGADAS_TIMEOUT_MS: ${API_COLIGADAS_TIMEOUT_MS:-10000}
+      API_COLIGADAS_CONCURRENCY: ${API_COLIGADAS_CONCURRENCY:-6}
+
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
+
+      IBGE_AGREGADO: ${IBGE_AGREGADO:-1685}
+      IBGE_VARIAVEL: ${IBGE_VARIAVEL:-10143}
+      IBGE_TIMEOUT_MS: ${IBGE_TIMEOUT_MS:-8000}
+      IBGE_CACHE_TTL_DAYS: ${IBGE_CACHE_TTL_DAYS:-30}
+
+      OVERPASS_URL: ${OVERPASS_URL:-https://overpass-api.de/api/interpreter}
+      OVERPASS_TIMEOUT_MS: ${OVERPASS_TIMEOUT_MS:-15000}
+      GEO_CACHE_TTL_HOURS: ${GEO_CACHE_TTL_HOURS:-24}
+
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-}
+    expose:
+      - "3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mongo:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "require('net').connect(3000, '127.0.0.1').on('connect', function () { process.exit(0); }).on('error', function () { process.exit(1); })",
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    restart: unless-stopped
+
+  client:
+    image: mateusseaiot/avaliapro:v1.0.0-client
+    pull_policy: always
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:3000/api}
+      NEXT_PUBLIC_MAPTILER_KEY: ${NEXT_PUBLIC_MAPTILER_KEY:-}
+    expose:
+      - "3000"
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "require('net').connect(3000, '127.0.0.1').on('connect', function () { process.exit(0); }).on('error', function () { process.exit(1); })",
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: ${DATABASE_USER:-avaliapro}
+      POSTGRES_PASSWORD: ${DATABASE_PASSWORD:-avaliapro_dev_password}
+      POSTGRES_DB: ${DATABASE_NAME:-avaliapro}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  mongo:
+    image: mongo:6.0
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_INITDB_ROOT_USERNAME:-avaliapro}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_INITDB_ROOT_PASSWORD:-avaliapro_mongo_password}
+      MONGO_INITDB_DATABASE: ${MONGO_INITDB_DATABASE:-avaliapro}
+    ports:
+      - "${MONGO_PORT:-27017}:27017"
+    volumes:
+      - mongo-data:/data/db
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "mongosh",
+          "--username",
+          "${MONGO_INITDB_ROOT_USERNAME:-avaliapro}",
+          "--password",
+          "${MONGO_INITDB_ROOT_PASSWORD:-avaliapro_mongo_password}",
+          "--authenticationDatabase",
+          "admin",
+          "--eval",
+          "db.adminCommand({ ping: 1 })",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  pgadmin:
+    image: dpage/pgadmin4:8
+    profiles:
+      - tools
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL:-admin@avaliapro.local}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD:-admin}
+    ports:
+      - "${PGADMIN_PORT:-5050}:80"
+    volumes:
+      - pgadmin-data:/var/lib/pgadmin
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  postgres-data:
+  mongo-data:
+  redis-data:
+  pgadmin-data:
+
+networks:
+  nginx_proxy:
+    external: true

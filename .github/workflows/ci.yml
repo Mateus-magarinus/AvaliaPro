@@ -1,0 +1,44 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  api:
+    name: API (lint · build · test)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: AvaliaPro/api
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: AvaliaPro/api/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run build
+      - run: npm test -- --ci
+
+  client:
+    name: Client (typecheck · build)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: AvaliaPro/client
+    env:
+      NEXT_TELEMETRY_DISABLED: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: AvaliaPro/client/package-lock.json
+      - run: npm ci
+      - run: npx tsc --noEmit
+      - run: npm run build

@@ -117,6 +117,12 @@ export class RealEstateDocument extends MongoAbstractDocument {
   @Prop()
   ValorIPTUTipo: string;
 
+  @Prop({ type: Number })
+  AreaPrivativa?: number;
+
+  @Prop({ type: Number })
+  AreaTotal?: number;
+
   @Prop()
   Financiamento: boolean;
 
@@ -192,7 +198,7 @@ export class RealEstateDocument extends MongoAbstractDocument {
   Piscina: boolean;
 
   @Prop()
-  Churrasqueira: string;
+  Churrasqueira: boolean;
 
   @Prop()
   Sacada: boolean;
@@ -247,6 +253,13 @@ export class RealEstateDocument extends MongoAbstractDocument {
 
   @Prop({ type: Map, of: [{ Nome: String, Categoria: String }] })
   Caracteristicas: Record<string, { Nome: string; Categoria: string }[]>;
+
+  // ====== campos adicionados p/ compatibilidade com filtros/ordenação ======
+  @Prop({ type: Number })
+  Preco?: number;
+
+  @Prop()
+  DataPublicacaoISO?: string;
 }
 
 export const RealEstateSchema =
@@ -254,7 +267,42 @@ export const RealEstateSchema =
 
 RealEstateSchema.index({ ID: 1, source: 1 }, { unique: true });
 RealEstateSchema.index({ Cidade: 1 });
+RealEstateSchema.index({ UF: 1 });
 RealEstateSchema.index({ Bairro: 1 });
 RealEstateSchema.index({ 'Tipo.Dormitorios': 1 });
 RealEstateSchema.index({ Preco: 1 });
+RealEstateSchema.index({ AreaPrivativa: 1 });
+RealEstateSchema.index({ AreaTotal: 1 });
+RealEstateSchema.index({ DataPublicacao: -1 });
 RealEstateSchema.index({ DataPublicacaoISO: -1 });
+
+RealEstateSchema.index(
+  {
+    Nome: 'text',
+    Anuncio: 'text',
+    'Descricao.Texto': 'text',
+    Bairro: 'text',
+    Endereco: 'text',
+    Cidade: 'text',
+    Perfil: 'text',
+    Categoria: 'text',
+    Codigo: 'text',
+    SEODescricao: 'text',
+  },
+  {
+    name: 'text_search',
+    weights: {
+      Nome: 10,
+      Anuncio: 8,
+      'Descricao.Texto': 6,
+      Bairro: 4,
+      Endereco: 4,
+      Perfil: 3,
+      Categoria: 3,
+      Cidade: 2,
+      Codigo: 1,
+      SEODescricao: 1,
+    },
+    default_language: 'portuguese',
+  },
+);

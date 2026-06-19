@@ -3,8 +3,55 @@ import { Cron } from '@nestjs/schedule';
 import { ConfigService } from '@nestjs/config';
 
 import { RealEstateRepository } from './real-estate.repository';
-import { ColigadasClient } from './providers/coligadas/coligadas.client';
+import {
+  ColigadasClient,
+  type ColigadasListRef,
+} from './providers/coligadas/coligadas.client';
 import { ColigadasMapper } from './providers/coligadas/coligadas.mapper';
+import { CacheService } from '../cache/cache.service';
+
+export type LocationGroup = {
+  city: string;
+  uf: string;
+  neighborhoods: string[];
+};
+
+const LOCATIONS_CACHE_KEY = 'real-estate:locations:v2';
+const LOCATIONS_CACHE_TTL_SECONDS = 6 * 3600; // 6h
+
+function normalize(value: string): string {
+  return value
+    .normalize('NFD')
+    .replace(/[^\x00-\x7f]/g, '')
+    .toLowerCase()
+    .trim();
+}
+
+/** Bairro válido: tem ao menos uma letra e 2+ caracteres (descarta "-", "0", "99009"). */
+function isValidNeighborhood(name: string): boolean {
+  const n = name.trim();
+  if (n.length < 2) return false;
+  return /[a-zA-ZÀ-ÿ]/.test(n);
+}
+
+/** Se vier tudo em CAIXA ALTA, converte para Title Case (CENTRO -> Centro). */
+function prettifyNeighborhood(name: string): string {
+  const n = name.trim().replace(/\s+/g, ' ');
+  const hasLower = /[a-zà-ÿ]/.test(n);
+  if (hasLower) return n; // já tem mistura de caixa, mantém
+  return n
+    .toLowerCase()
+    .replace(/(^|[\s/-])([a-zà-ÿ])/g, (_, sep, ch) => sep + ch.toUpperCase());
+}
+
+/** Escolhe a melhor grafia entre variantes do mesmo bairro: prefere a que tem caixa mista. */
+function bestSpelling(a: string, b: string): string {
+  const aMixed = /[a-zà-ÿ]/.test(a) && /[A-ZÀ-Þ]/.test(a);
+  const bMixed = /[a-zà-ÿ]/.test(b) && /[A-ZÀ-Þ]/.test(b);
+  if (aMixed && !bMixed) return a;
+  if (bMixed && !aMixed) return b;
+  return a; // mantém a primeira
+}
 
 @Injectable()
 export class RealEstateService {
@@ -16,16 +63,58 @@ export class RealEstateService {
     private readonly coligadas: ColigadasClient,
     private readonly mapper: ColigadasMapper,
     private readonly config: ConfigService,
+    private readonly cache: CacheService,
   ) {
-    // Permite ajustar a concorrência via env se quiser (padrão 6)
     this.CONCURRENCY = Number(
       this.config.get('API_COLIGADAS_CONCURRENCY') ?? 6,
     );
   }
 
   /**
-   * Cron diário às 04:00 para sincronizar Coligadas
+   * Lista de cidades (com UF) e seus bairros, para popular os filtros do front.
+   * Resultado cacheado (Redis ou memória) por algumas horas.
    */
+  async getLocations(): Promise<LocationGroup[]> {
+    return this.cache.wrap<LocationGroup[]>(
+      LOCATIONS_CACHE_KEY,
+      LOCATIONS_CACHE_TTL_SECONDS,
+      () => this.buildLocations(),
+    );
+  }
+
+  /** Recalcula e regrava o cache de localizações (chamar após sync). */
+  async refreshLocationsCache(): Promise<LocationGroup[]> {
+    const groups = await this.buildLocations();
+    await this.cache.set(
+      LOCATIONS_CACHE_KEY,
+      groups,
+      LOCATIONS_CACHE_TTL_SECONDS,
+    );
+    return groups;
+  }
+
+  private async buildLocations(): Promise<LocationGroup[]> {
+    const raw = await this.repository.aggregateLocations();
+    return raw
+      .filter((r) => r.city)
+      .map((r) => {
+        // descarta bairros inválidos e dedupe case-insensitive, escolhendo a melhor grafia
+        const seen = new Map<string, string>();
+        for (const b of r.bairros) {
+          const name = String(b ?? '').trim();
+          if (!isValidNeighborhood(name)) continue;
+          const key = normalize(name);
+          const current = seen.get(key);
+          seen.set(key, current ? bestSpelling(current, name) : name);
+        }
+        const neighborhoods = Array.from(seen.values())
+          .map(prettifyNeighborhood)
+          .sort((a, b) => a.localeCompare(b, 'pt-BR'));
+        return { city: r.city, uf: r.uf, neighborhoods };
+      })
+      .sort((a, b) => a.city.localeCompare(b.city, 'pt-BR'));
+  }
+
   @Cron('0 4 * * *')
   async syncColigadasDaily() {
     this.logger.log('Iniciando sync diário da Coligadas…');
@@ -33,12 +122,13 @@ export class RealEstateService {
     this.logger.log(
       `Sync diário concluído: upserts=${result.upserts} deleted=${result.deleted} errors=${result.errors}`,
     );
+    await this.refreshLocationsCache().catch((err) =>
+      this.logger.warn(
+        `Falha ao atualizar cache de localizações: ${err?.message ?? err}`,
+      ),
+    );
   }
 
-  /**
-   * Sincroniza tudo da Coligadas (listar IDs -> buscar detalhes -> upsert -> purge)
-   * Pode ser chamado via controller/endpoint manual.
-   */
   async syncColigadas(): Promise<{
     upserts: number;
     deleted: number;
@@ -46,10 +136,11 @@ export class RealEstateService {
   }> {
     this.logger.log('Sincronização Coligadas: iniciando');
 
-    // 1) IDs
+    let refs: ColigadasListRef[] = [];
     let ids: number[] = [];
     try {
-      ids = await this.coligadas.fetchAllIds();
+      refs = await this.coligadas.fetchAllRefs();
+      ids = refs.map((ref) => ref.id);
       this.logger.log(`Coligadas: ${ids.length} IDs encontrados`);
     } catch (err) {
       this.logger.error(
@@ -59,34 +150,42 @@ export class RealEstateService {
       return { upserts: 0, deleted: 0, errors: 1 };
     }
 
-    // 2) Detalhes + upsert em lotes com concorrência controlada
     let upserts = 0;
     let errors = 0;
 
-    for (let i = 0; i < ids.length; i += this.CONCURRENCY) {
-      const slice = ids.slice(i, i + this.CONCURRENCY);
+    for (let i = 0; i < refs.length; i += this.CONCURRENCY) {
+      const slice = refs.slice(i, i + this.CONCURRENCY);
 
-      // 2.1) Buscar detalhes em paralelo
       const results = await Promise.allSettled(
-        slice.map((id) => this.coligadas.fetchDetail(id)),
+        slice.map((ref) => this.coligadas.fetchDetail(ref.id, ref.link)),
       );
 
-      // 2.2) Mapear e upsert dos que vieram OK
       const fulfilled = results
-        .map((r, idx) => ({ r, id: slice[idx] }))
+        .map((r, idx) => ({ r, ref: slice[idx] }))
         .filter(
           (x) =>
             x.r.status === 'fulfilled' &&
             (x.r as PromiseFulfilledResult<any>).value,
         );
 
-      // erros de fetch
-      errors += results.filter((x) => x.status === 'rejected').length;
+      const rejected = results
+        .map((r, idx) => ({ r, id: slice[idx].id }))
+        .filter((x) => x.r.status === 'rejected');
 
-      // 2.3) Upserts (mantém paralelismo dentro do lote)
+      errors += rejected.length;
+      for (const fail of rejected.slice(0, 3)) {
+        this.logger.warn(
+          `Falha ao buscar detalhe ID=${fail.id}: ${this.describeSyncError(
+            (fail.r as PromiseRejectedResult).reason,
+          )}`,
+        );
+      }
+
       await Promise.all(
-        fulfilled.map(async ({ r }) => {
+        fulfilled.map(async ({ r, ref }) => {
           const raw = (r as PromiseFulfilledResult<any>).value;
+          if (!raw.Link && ref.link) raw.Link = ref.link;
+
           const doc = this.mapper.toRealEstateDoc(raw);
           try {
             await this.repository.findOneAndUpsert(
@@ -102,7 +201,6 @@ export class RealEstateService {
       );
     }
 
-    // 3) Purge: remove imóveis da Coligadas que não estão mais presentes
     const deleted = await this.purgeMissingFromColigadas(ids);
 
     const summary = { upserts, deleted, errors };
@@ -112,9 +210,46 @@ export class RealEstateService {
     return summary;
   }
 
-  /**
-   * Remove documentos da fonte 'coligadas' cujos IDs não estão mais na API
-   */
+  async syncColigadasOne(
+    id: number,
+    link?: string | null,
+  ): Promise<{
+    id: number;
+    upserted: boolean;
+    fotos: number;
+    link: string | null;
+  }> {
+    let effectiveLink = link?.trim() || null;
+
+    if (!effectiveLink) {
+      try {
+        const existing: any = await this.repository.findOne({
+          ID: id,
+          source: 'coligadas',
+        } as any);
+        effectiveLink = existing?.Link ?? null;
+      } catch {
+        effectiveLink = null;
+      }
+    }
+
+    const raw = await this.coligadas.fetchDetail(id, effectiveLink);
+    if (!raw.Link && effectiveLink) raw.Link = effectiveLink;
+
+    const doc = this.mapper.toRealEstateDoc(raw);
+    await this.repository.findOneAndUpsert(
+      { ID: doc.ID, source: 'coligadas' } as any,
+      { $set: doc } as any,
+    );
+
+    return {
+      id: doc.ID,
+      upserted: true,
+      fotos: Array.isArray(doc.Fotos) ? doc.Fotos.length : 0,
+      link: doc.Link ?? effectiveLink ?? null,
+    };
+  }
+
   private async purgeMissingFromColigadas(validIds: number[]): Promise<number> {
     try {
       const res: any = await this.repository.deleteMany({
@@ -126,5 +261,15 @@ export class RealEstateService {
       this.logger.warn(`Falha ao remover itens obsoletos da Coligadas: ${e}`);
       return 0;
     }
+  }
+
+  private describeSyncError(err: any): string {
+    const status = err?.response?.status;
+    const statusText = err?.response?.statusText;
+    const url = err?.config?.url;
+    if (status) {
+      return `HTTP ${status}${statusText ? ` ${statusText}` : ''}${url ? ` (${url})` : ''}`;
+    }
+    return err?.message ?? String(err);
   }
 }

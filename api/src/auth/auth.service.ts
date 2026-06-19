@@ -61,7 +61,8 @@ export class AuthService {
       this.logger.log(`Token validated for user: ${user.email}`);
       return user;
     } catch (error) {
-      this.logger.error('Token validation failed', error.stack);
+      const stack = error instanceof Error ? error.stack : String(error);
+      this.logger.error('Token validation failed', stack);
       throw new UnauthorizedException('Invalid token');
     }
   }

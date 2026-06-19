@@ -1,43 +1,18 @@
-import { AdType } from '@common';
 import {
-  IsString,
-  IsOptional,
+  IsArray,
+  IsBoolean,
   IsInt,
   IsNumber,
-  IsEnum,
-  IsNotEmpty,
-  Min,
-  Validate,
+  IsOptional,
+  IsString,
+  ValidateNested,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
-class MinLteMaxConstraint {
-  validate(_: any, args: any) {
-    const obj = args.object as any;
-    const [minKey, maxKey] = args.constraints as [string, string];
-    const min = obj[minKey];
-    const max = obj[maxKey];
-    if (min === undefined || max === undefined) return true;
-    return Number(min) <= Number(max);
-  }
-  defaultMessage(args: any) {
-    const [minKey, maxKey] = args.constraints as [string, string];
-    return `${minKey} must be less than or equal to ${maxKey}`;
-  }
-}
-
-export class CreateEvaluationDto {
-  @IsString()
-  @IsNotEmpty()
-  name: string;
-
+export class RealEstateFiltersDto {
   @IsOptional()
   @IsString()
-  propertyType?: string;
-
-  @IsString()
-  @IsNotEmpty()
-  city: string;
+  city?: string;
 
   @IsOptional()
   @IsString()
@@ -48,57 +23,131 @@ export class CreateEvaluationDto {
   neighborhood?: string;
 
   @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  neighborhoods?: string[];
+
+  @IsOptional()
+  @IsString()
+  propertyType?: string;
+
+  @IsOptional()
+  @IsString()
+  type?: string;
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  types?: string[];
+
+  @IsOptional()
   @Type(() => Number)
   @IsInt()
-  @Min(0)
+  garage?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  minPrice?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  maxPrice?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  minArea?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  maxArea?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
   bedrooms?: number;
 
   @IsOptional()
   @Type(() => Number)
   @IsInt()
-  @Min(0)
-  garage?: number;
-
-  @IsOptional()
-  @Type(() => Number)
-  @IsInt()
-  @Min(0)
   bathrooms?: number;
 
   @IsOptional()
   @Type(() => Number)
-  @IsNumber({ maxDecimalPlaces: 2 })
-  @Min(0)
-  priceMin?: number;
+  @IsInt()
+  suites?: number;
 
   @IsOptional()
-  @Type(() => Number)
-  @IsNumber({ maxDecimalPlaces: 2 })
-  @Min(0)
-  priceMax?: number;
+  @IsString()
+  q?: string;
+
+  // características (booleanas)
+  @IsOptional()
+  @IsBoolean()
+  highStandard?: boolean;
 
   @IsOptional()
-  @Type(() => Number)
-  @IsNumber({ maxDecimalPlaces: 2 })
-  @Min(0)
-  areaMin?: number;
+  @IsBoolean()
+  furnished?: boolean;
 
   @IsOptional()
-  @Type(() => Number)
-  @IsNumber({ maxDecimalPlaces: 2 })
-  @Min(0)
-  areaMax?: number;
+  @IsBoolean()
+  pool?: boolean;
 
   @IsOptional()
-  @IsEnum(AdType)
-  adType?: AdType;
+  @IsBoolean()
+  balcony?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  elevator?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  leisureArea?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  barbecue?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  petFriendly?: boolean;
 }
 
-Validate(MinLteMaxConstraint, ['priceMin', 'priceMax'])(
-  CreateEvaluationDto.prototype,
-  'priceMax',
-);
-Validate(MinLteMaxConstraint, ['areaMin', 'areaMax'])(
-  CreateEvaluationDto.prototype,
-  'areaMax',
-);
+export class CreateEvaluationOptionsDto {
+  @IsOptional()
+  @IsBoolean()
+  previewOnly?: boolean;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  previewSampleLimit?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  attachTopN?: number;
+}
+
+export class CreateEvaluationDto {
+  @IsString()
+  name: string;
+
+  @IsOptional()
+  @IsString()
+  description?: string;
+
+  @ValidateNested()
+  @Type(() => RealEstateFiltersDto)
+  filters: RealEstateFiltersDto;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => CreateEvaluationOptionsDto)
+  options?: CreateEvaluationOptionsDto;
+}

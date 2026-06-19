@@ -3,150 +3,154 @@ import {
   Controller,
   Delete,
   Get,
-  HttpCode,
-  HttpStatus,
   Param,
+  ParseBoolPipe,
+  ParseIntPipe,
   Patch,
   Post,
   Query,
-  Req,
+  Res,
   UseGuards,
 } from '@nestjs/common';
-import { Request } from 'express';
-import { AuthGuard } from '@nestjs/passport';
+import { Response } from 'express';
 import { EvaluationsService } from './services/evaluations.service';
+import { EvaluationExportService } from './services/evaluation-export.service';
 import { CreateEvaluationDto } from './dto/create-evaluation.dto';
 import { UpdateEvaluationDto } from './dto/update-evaluation.dto';
+import { CurrentUser, JwtAuthGuard } from '@common';
+import { QuotaGuard } from '../plans/guards/quota.guard';
+import { SubscriptionService } from '../plans/subscription.service';
 
-class AttachFromDocsDto {
-  docs!: any[];
-}
-
-@UseGuards(AuthGuard('jwt'))
+@UseGuards(JwtAuthGuard)
 @Controller('evaluations')
 export class EvaluationsController {
-  constructor(private readonly service: EvaluationsService) {}
+  constructor(
+    private readonly service: EvaluationsService,
+    private readonly exportService: EvaluationExportService,
+    private readonly subscriptionService: SubscriptionService,
+  ) {}
 
-  // LISTAR (paginado)
-  @Get()
-  async list(
-    @Req() req: Request,
-    @Query('page') page?: string,
-    @Query('limit') limit?: string,
-  ) {
-    const userId = (req as any).user?.id;
-    return this.service.list(String(userId), {
-      page: page ? Number(page) : undefined,
-      limit: limit ? Number(limit) : undefined,
-    });
-  }
-
-  // CRIAR
+  @UseGuards(QuotaGuard)
   @Post()
-  async create(@Req() req: Request, @Body() dto: CreateEvaluationDto) {
-    const userId = (req as any).user?.id;
-    return this.service.create(String(userId), dto);
-  }
-
-  // DETALHE
-  @Get(':id')
-  async getById(@Req() req: Request, @Param('id') id: string) {
-    const userId = (req as any).user?.id;
-    return this.service.getById(id, String(userId));
-  }
-
-  // ATUALIZAR
-  @Patch(':id')
-  async update(
-    @Req() req: Request,
-    @Param('id') id: string,
-    @Body() dto: UpdateEvaluationDto,
+  async createWithPreview(
+    @Body() dto: CreateEvaluationDto,
+    @CurrentUser() user: any,
   ) {
-    const userId = (req as any).user?.id;
-    return this.service.update(id, String(userId), dto);
+    const userId = user?.id ?? user?.userId ?? user?.sub;
+    const result = await this.service.createWithPreview(dto, userId);
+    await this.subscriptionService.incrementUsage(Number(userId));
+    return result;
   }
 
-  // REMOVER
-  @Delete(':id')
-  @HttpCode(HttpStatus.NO_CONTENT)
-  async remove(@Req() req: Request, @Param('id') id: string) {
-    const userId = (req as any).user?.id;
-    await this.service.delete(id, String(userId));
-  }
-
-  // ANEXAR COMPARÁVEIS (docs Mongo)
-  @Post(':id/properties/from-docs')
-  async attachFromDocs(
-    @Req() req: Request,
-    @Param('id') id: string,
-    @Body() body: AttachFromDocsDto,
-    @Query('enrichIBGE') enrichIBGE?: string,
-  ) {
-    const userId = (req as any).user?.id;
-    const useIBGE = ['1', 'true', 'yes', 'on'].includes(
-      String(enrichIBGE ?? '').toLowerCase(),
-    );
-
-    return this.service.attachComparablesFromDocs(
-      id,
-      String(userId),
-      body?.docs ?? [],
-      {
-        enrichIBGE: useIBGE ? async () => null : undefined,
-      },
-    );
-  }
-
-  // REMOVER UM COMPARÁVEL
-  @Delete(':id/properties/:propertyId')
-  @HttpCode(HttpStatus.NO_CONTENT)
-  async removeComparable(
-    @Req() req: Request,
-    @Param('id') _id: string,
-    @Param('propertyId') propertyId: string,
-  ) {
-    const userId = (req as any).user?.id;
-    await this.service.removeComparable(propertyId, String(userId));
-  }
-
-  // ESTATÍSTICAS
-  @Get(':id/stats')
-  async computeStats(@Req() req: Request, @Param('id') id: string) {
-    const userId = (req as any).user?.id;
-    return this.service.computeStats(id, String(userId));
-  }
-
-  // CONFIRMAR AVALIAÇÃO
-  @Post(':id/confirm')
-  async confirm(@Req() req: Request, @Param('id') id: string) {
-    const userId = (req as any).user?.id;
-    return this.service.confirm(id, String(userId));
-  }
-
-  @Get(':id/search')
+  @Post('preview')
   async preview(
-    @Req() req: Request,
-    @Param('id') id: string,
-    @Query('page') page?: string,
+    @Body('filters') filters: CreateEvaluationDto['filters'],
     @Query('limit') limit?: string,
-    @Query('sort') sort?: 'recency' | 'price',
   ) {
-    const userId = (req as any).user?.id;
-    return this.service.previewComparables(id, String(userId), {
-      page: page ? Number(page) : undefined,
-      limit: limit ? Number(limit) : undefined,
-      sort,
+    const n = Number(limit);
+    const parsed = Number.isFinite(n) ? n : 10;
+    return this.service.preview(filters, parsed);
+  }
+
+  @Get()
+  async listMy(
+    @CurrentUser() user: any,
+    @Query('page', new ParseIntPipe({ optional: true })) page?: number,
+    @Query('limit', new ParseIntPipe({ optional: true })) limit?: number,
+    @Query('withProperties', new ParseBoolPipe({ optional: true }))
+    withProperties?: boolean,
+    @Query('withPropertyCount', new ParseBoolPipe({ optional: true }))
+    withPropertyCount?: boolean,
+    @Query('status') status?: 'draft' | 'confirmed' | 'archived',
+    @Query('q') q?: string,
+    @Query('sortBy') sortBy?: 'createdAt' | 'name' | 'status',
+    @Query('sortDir') sortDir?: 'ASC' | 'DESC' | 'asc' | 'desc',
+  ) {
+    const userId = user?.id ?? user?.userId ?? user?.sub;
+    return this.service.listMy(userId, {
+      page,
+      limit,
+      status,
+      q,
+      withProperties,
+      withPropertyCount,
+      sortBy,
+      sortDir,
     });
   }
 
-  // Anexar por IDs externos
-  @Post(':id/properties/by-ids')
-  async attachByIds(
-    @Req() req: Request,
-    @Param('id') id: string,
-    @Body() body: { ids: string[]; source?: string },
+  @Get(':id')
+  async getMyById(
+    @Param('id', ParseIntPipe) id: number,
+    @CurrentUser() user: any,
+    @Query('withProperties', new ParseBoolPipe({ optional: true }))
+    withProperties?: boolean,
   ) {
-    const userId = (req as any).user?.id;
-    return this.service.attachComparablesByIds(id, String(userId), body);
+    const userId = user?.id ?? user?.userId ?? user?.sub;
+    return this.service.getMyById(userId, id, !!withProperties);
+  }
+
+  @Patch(':id')
+  async updateMy(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: UpdateEvaluationDto,
+    @CurrentUser() user: any,
+  ) {
+    const userId = user?.id ?? user?.userId ?? user?.sub;
+    return this.service.updateMy(userId, id, dto);
+  }
+
+  @Post(':id/confirm')
+  async confirmMy(
+    @Param('id', ParseIntPipe) id: number,
+    @CurrentUser() user: any,
+  ) {
+    const userId = user?.id ?? user?.userId ?? user?.sub;
+    return this.service.confirmMy(userId, id);
+  }
+
+  @Post(':id/reopen')
+  async reopenMy(
+    @Param('id', ParseIntPipe) id: number,
+    @CurrentUser() user: any,
+  ) {
+    const userId = user?.id ?? user?.userId ?? user?.sub;
+    return this.service.reopenMy(userId, id);
+  }
+
+  @Post(':id/enrich-ibge')
+  async enrichIbge(
+    @Param('id', ParseIntPipe) id: number,
+    @CurrentUser() user: any,
+    @Query('force', new ParseBoolPipe({ optional: true })) force?: boolean,
+  ) {
+    const userId = user?.id ?? user?.userId ?? user?.sub;
+    return this.service.enrichIbge(userId, id, !!force);
+  }
+
+  @Get(':id/export')
+  async exportXlsx(
+    @Param('id', ParseIntPipe) id: number,
+    @CurrentUser() user: any,
+    @Res() res: Response,
+  ) {
+    const userId = user?.id ?? user?.userId ?? user?.sub;
+    const buffer = await this.exportService.buildXlsx(Number(userId), id);
+    res.set({
+      'Content-Type':
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'Content-Disposition': `attachment; filename="avaliapro-avaliacao-${id}.xlsx"`,
+      'Content-Length': buffer.length,
+    });
+    res.end(buffer);
+  }
+
+  @Delete(':id')
+  async archiveMy(
+    @Param('id', ParseIntPipe) id: number,
+    @CurrentUser() user: any,
+  ) {
+    const userId = user?.id ?? user?.userId ?? user?.sub;
+    return this.service.archiveMy(userId, id);
   }
 }
