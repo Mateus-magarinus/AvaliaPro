@@ -128,6 +128,54 @@ function escapeHtml(value: string) {
     .replace(/"/g, "&quot;");
 }
 
+function median(sorted: number[]): number {
+  const m = Math.floor(sorted.length / 2);
+  return sorted.length % 2 ? sorted[m] : (sorted[m - 1] + sorted[m]) / 2;
+}
+
+/** Raio (em graus) ao redor da mediana para considerar um ponto "da cidade". ~85km. */
+const CITY_RADIUS_DEG = 0.75;
+
+/**
+ * Extensão geográfica do cluster da cidade, ignorando coordenadas quebradas.
+ *
+ * Âncora: o centro real da cidade (`anchor`, ex.: centróide IBGE) quando
+ * disponível — imune a dados quebrados, mesmo que sejam a maioria. Sem âncora,
+ * cai para a MEDIANA das coordenadas. Mantém só os pontos dentro de um raio
+ * ao redor da âncora; se nenhum imóvel for válido, enquadra uma caixa na cidade.
+ */
+function inlierExtent(
+  pts: Array<{ lat: number | null; lng: number | null }>,
+  anchor?: { lat: number; lng: number } | null,
+) {
+  const cLat = anchor ? anchor.lat : median(pts.map((p) => Number(p.lat)).sort((a, b) => a - b));
+  const cLng = anchor ? anchor.lng : median(pts.map((p) => Number(p.lng)).sort((a, b) => a - b));
+
+  const use = pts.filter(
+    (p) =>
+      Math.abs(Number(p.lat) - cLat) <= CITY_RADIUS_DEG &&
+      Math.abs(Number(p.lng) - cLng) <= CITY_RADIUS_DEG,
+  );
+
+  // Sem imóveis válidos perto da cidade → caixa pequena ao redor da âncora
+  const box = 0.06;
+  const ilats = use.length ? use.map((p) => Number(p.lat)) : [cLat - box, cLat + box];
+  const ilngs = use.length ? use.map((p) => Number(p.lng)) : [cLng - box, cLng + box];
+  const minLat = Math.min(...ilats);
+  const maxLat = Math.max(...ilats);
+  const minLng = Math.min(...ilngs);
+  const maxLng = Math.max(...ilngs);
+  return {
+    minLat,
+    maxLat,
+    minLng,
+    maxLng,
+    centerLat: cLat,
+    centerLng: cLng,
+    count: use.length,
+  };
+}
+
 function poiDot(color: string): HTMLElement {
   const el = document.createElement("div");
   el.style.width = "12px";
@@ -143,9 +191,11 @@ function poiDot(color: string): HTMLElement {
 export default function MapView({
   points,
   onOpenProperty,
+  cityCenter,
 }: {
   points: MapPoint[];
   onOpenProperty?: (id: string | number) => void;
+  cityCenter?: { lat: number; lng: number } | null;
 }) {
   const mapRef = useRef<HTMLDivElement | null>(null);
   const instanceRef = useRef<MapLibreMap | null>(null);
@@ -178,17 +228,16 @@ export default function MapView({
         const maplibregl = window.maplibregl;
         if (cancelled || !mapRef.current || !maplibregl) return;
 
-        const center: [number, number] = [
-          validPoints.reduce((sum, point) => sum + Number(point.lng), 0) / validPoints.length,
-          validPoints.reduce((sum, point) => sum + Number(point.lat), 0) / validPoints.length,
-        ];
+        // Enquadra no cluster real da cidade, ancorando no centróide (imune a coords quebradas)
+        const ext = inlierExtent(validPoints, cityCenter);
+        const center: [number, number] = [ext.centerLng, ext.centerLat];
 
         instanceRef.current?.remove();
         const map = new maplibregl.Map({
           container: mapRef.current,
           style: `https://api.maptiler.com/maps/streets-v2/style.json?key=${key}`,
           center,
-          zoom: validPoints.length > 1 ? 12 : 15,
+          zoom: ext.count > 1 ? 12 : 15,
         });
         instanceRef.current = map;
         map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right");
@@ -207,18 +256,14 @@ export default function MapView({
             .addTo(map);
         });
 
-        // Enquadra todos os imóveis (centraliza na cidade em questão)
-        if (validPoints.length > 1) {
-          const lngs = validPoints.map((p) => Number(p.lng));
-          const lats = validPoints.map((p) => Number(p.lat));
-          map.fitBounds(
-            [
-              [Math.min(...lngs), Math.min(...lats)],
-              [Math.max(...lngs), Math.max(...lats)],
-            ],
-            { padding: 60, maxZoom: 15, duration: 0 },
-          );
-        }
+        // Enquadra no cluster (sem outliers) / caixa da cidade — abre focado na cidade
+        map.fitBounds(
+          [
+            [ext.minLng, ext.minLat],
+            [ext.maxLng, ext.maxLat],
+          ],
+          { padding: 60, maxZoom: 15, duration: 0 },
+        );
 
         if (!cancelled) setReady(true);
       } catch {
@@ -246,7 +291,7 @@ export default function MapView({
       instanceRef.current = null;
       setReady(false);
     };
-  }, [key, validPoints]);
+  }, [key, validPoints, cityCenter?.lat, cityCenter?.lng]);
 
   // Carrega/atualiza POIs quando categorias mudam ou o mapa se move
   useEffect(() => {

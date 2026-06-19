@@ -221,6 +221,9 @@ export class PropertyService {
           ((d as any).description as string) ?? (d.title as string) ?? null;
         const images = Array.isArray(d.images) ? d.images : null;
 
+        const dd = d as any;
+        const suites = this.int(dd.suites);
+
         return {
           evaluation: { id: evaluationId } as any,
           city,
@@ -239,6 +242,22 @@ export class PropertyService {
           contactPhone,
           description,
           images,
+          // metadados de origem
+          source: (dd.source as string) ?? null,
+          externalId: dd.externalId != null ? String(dd.externalId) : null,
+          code: (dd.code as string) ?? null,
+          state: (dd.state as string) ?? null,
+          propertyType: (dd.type as string) ?? null,
+          // características
+          suites,
+          pool: typeof dd.pool === 'boolean' ? dd.pool : null,
+          balcony: typeof dd.balcony === 'boolean' ? dd.balcony : null,
+          elevator: typeof dd.elevator === 'boolean' ? dd.elevator : null,
+          leisureArea: typeof dd.leisureArea === 'boolean' ? dd.leisureArea : null,
+          barbecue: typeof dd.barbecue === 'boolean' ? dd.barbecue : null,
+          petFriendly: typeof dd.petFriendly === 'boolean' ? dd.petFriendly : null,
+          furniture: (dd.furniture as string) ?? null,
+          highStandard: typeof dd.highStandard === 'boolean' ? dd.highStandard : null,
         } as Partial<Property>;
       })
       .filter(

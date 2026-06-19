@@ -73,6 +73,7 @@ function mapDocToItem(doc: any): RealEstateItem {
   return {
     externalId: String(doc.ID),
     source: doc.source ?? 'coligadas',
+    code: doc.Codigo ?? null,
     title: doc.Nome ?? doc.Anuncio ?? null,
     address: address || null,
     city: doc.Cidade ?? '',
@@ -80,14 +81,28 @@ function mapDocToItem(doc: any): RealEstateItem {
     neighborhood: doc.Bairro ?? null,
     lat: coord(doc.Latitude),
     lng: coord(doc.Longitude),
-    type: doc.Categoria ?? doc.Perfil ?? null,
+    type:
+      (Array.isArray(doc.Tipo) ? doc.Tipo[0]?.Tipo : null) ??
+      doc.Perfil ??
+      doc.Categoria ??
+      null,
     bedrooms: bedroomsFromTipos,
     bathrooms: int(doc.Banheiros),
     garage: int(doc.Garagem),
+    suites: int(doc.Suites),
     area,
     price,
     url: doc.URL ?? doc.Link ?? null,
     images,
+    // características
+    pool: !!doc.Piscina,
+    balcony: !!doc.Sacada,
+    elevator: (int(doc.Elevador) ?? 0) > 0,
+    leisureArea: !!doc.AreaLazer,
+    barbecue: !!doc.Churrasqueira,
+    petFriendly: !!doc.AceitaPet,
+    furniture: doc.Mobilia ?? null,
+    highStandard: !!doc.AltoPadrao,
     raw: { ID: doc.ID },
   };
 }
@@ -244,6 +259,34 @@ export class MongoRealEstateSearchAdapter implements RealEstateSearchPort {
         { Garagem: garage },
         { Garagem: strNumEq(garage) },
       ]);
+    }
+
+    // suítes (mínimo) — campo gravado ora como número, ora como string
+    if (Number.isFinite((filters as any).suites as any)) {
+      const suites = Number((filters as any).suites);
+      const vals: any[] = [];
+      for (let i = suites; i <= 15; i++) vals.push(i, String(i));
+      q.Suites = { $in: vals };
+    }
+
+    // alto padrão (booleano)
+    if ((filters as any).highStandard === true) {
+      q.AltoPadrao = true;
+    }
+
+    // características (booleanas) — só aplica quando marcado true
+    const flag = (v: any) => v === true || v === 'true';
+    if (flag((filters as any).pool)) q.Piscina = true;
+    if (flag((filters as any).balcony)) q.Sacada = true;
+    if (flag((filters as any).leisureArea)) q.AreaLazer = true;
+    if (flag((filters as any).barbecue)) q.Churrasqueira = true;
+    if (flag((filters as any).petFriendly)) q.AceitaPet = true;
+    if (flag((filters as any).elevator)) q.Elevador = { $gt: 0 };
+    if (flag((filters as any).furnished)) {
+      // furnished = tem mobília (inclui "Semimobiliado"), exclui só "Sem mobilia"
+      (q as any).$and = (q as any).$and ?? [];
+      (q as any).$and.push({ Mobilia: { $exists: true, $nin: [null, ''] } });
+      (q as any).$and.push({ Mobilia: { $not: /sem\s*mobil/i } });
     }
 
     const areaMin = Number(

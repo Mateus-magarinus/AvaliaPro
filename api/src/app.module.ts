@@ -50,6 +50,8 @@ import { ColumnPreferencesModule } from './column-preferences/column-preferences
 
         CENSUS_DATA_PATH: Joi.string().optional().allow(''),
 
+        ADMIN_EMAIL: Joi.string().optional().allow(''),
+
         OVERPASS_URL: Joi.string()
           .uri()
           .default('https://overpass-api.de/api/interpreter'),

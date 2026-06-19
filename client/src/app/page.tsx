@@ -32,6 +32,15 @@ type WizardForm = {
   bedrooms: string;
   bathrooms: string;
   garage: string;
+  suites: string;
+  highStandard: boolean;
+  pool: boolean;
+  balcony: boolean;
+  elevator: boolean;
+  leisureArea: boolean;
+  barbecue: boolean;
+  furnished: boolean;
+  petFriendly: boolean;
   minPrice: string;
   maxPrice: string;
   minArea: string;
@@ -48,6 +57,15 @@ const initialForm: WizardForm = {
   bedrooms: "",
   bathrooms: "",
   garage: "",
+  suites: "",
+  highStandard: false,
+  pool: false,
+  balcony: false,
+  elevator: false,
+  leisureArea: false,
+  barbecue: false,
+  furnished: false,
+  petFriendly: false,
   minPrice: "",
   maxPrice: "",
   minArea: "",
@@ -87,6 +105,15 @@ function buildFilters(form: WizardForm) {
     bedrooms: toInt(form.bedrooms),
     bathrooms: toInt(form.bathrooms),
     garage: toInt(form.garage),
+    suites: toInt(form.suites),
+    highStandard: form.highStandard || undefined,
+    pool: form.pool || undefined,
+    balcony: form.balcony || undefined,
+    elevator: form.elevator || undefined,
+    leisureArea: form.leisureArea || undefined,
+    barbecue: form.barbecue || undefined,
+    furnished: form.furnished || undefined,
+    petFriendly: form.petFriendly || undefined,
     minPrice: toNumber(form.minPrice),
     maxPrice: toNumber(form.maxPrice),
     minArea: toNumber(form.minArea),
@@ -389,6 +416,42 @@ export default function HomeWizardPage() {
                   />
                 </Field>
               </div>
+
+              <div className="mt-6 rounded-md border border-[#9db8ca] bg-white/60 p-4">
+                <p className="mb-3 text-sm font-semibold text-[#062650]">Mais filtros</p>
+                <div className="grid gap-4 md:grid-cols-3">
+                  <Field label="Suítes (mínimo)" icon={<BedDouble className="h-4 w-4" />}>
+                    <QuantityStepper
+                      value={form.suites}
+                      onChange={(value) => setForm((current) => ({ ...current, suites: value }))}
+                    />
+                  </Field>
+                </div>
+
+                <div className="mt-4 grid gap-x-6 gap-y-2.5 sm:grid-cols-2 md:grid-cols-3">
+                  {([
+                    ["highStandard", "Alto padrão"],
+                    ["furnished", "Mobiliado"],
+                    ["pool", "Piscina"],
+                    ["balcony", "Sacada"],
+                    ["elevator", "Elevador"],
+                    ["leisureArea", "Área de lazer"],
+                    ["barbecue", "Churrasqueira"],
+                    ["petFriendly", "Aceita pet"],
+                  ] as Array<[keyof WizardForm, string]>).map(([key, label]) => (
+                    <label key={key} className="flex cursor-pointer items-center gap-2.5">
+                      <input
+                        type="checkbox"
+                        checked={Boolean(form[key])}
+                        onChange={(event) => setForm((current) => ({ ...current, [key]: event.target.checked }))}
+                        className="h-4 w-4 accent-[#062650]"
+                      />
+                      <span className="text-sm font-medium text-[#062650]">{label}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
               <p className="mt-4 text-xs text-slate-500">
                 Deixe os campos de quantidade em &quot;Qualquer&quot; para não filtrar por esse critério.
               </p>
@@ -414,6 +477,20 @@ export default function HomeWizardPage() {
                   <b>Banheiros:</b> {form.bathrooms || "Qualquer"}
                   <br />
                   <b>Garagem:</b> {form.garage || "Qualquer"}
+                  <br />
+                  <b>Suítes:</b> {form.suites ? `${form.suites}+` : "Qualquer"}
+                  <br />
+                  <b>Características:</b>{" "}
+                  {[
+                    form.highStandard && "Alto padrão",
+                    form.furnished && "Mobiliado",
+                    form.pool && "Piscina",
+                    form.balcony && "Sacada",
+                    form.elevator && "Elevador",
+                    form.leisureArea && "Área de lazer",
+                    form.barbecue && "Churrasqueira",
+                    form.petFriendly && "Aceita pet",
+                  ].filter(Boolean).join(", ") || "Nenhuma"}
                   <br />
                   <b>Preço:</b> {form.minPrice ? `R$ ${form.minPrice}` : "?"} - {form.maxPrice ? `R$ ${form.maxPrice}` : "?"}
                   <br />

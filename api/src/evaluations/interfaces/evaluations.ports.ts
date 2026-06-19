@@ -62,6 +62,7 @@ export interface RealEstateSearchFilters {
 export interface RealEstateItem {
   externalId: string;
   source: string;
+  code?: string | null; // código/referência do anúncio
   title?: string | null;
   address?: string | null;
   city: string;
@@ -73,10 +74,20 @@ export interface RealEstateItem {
   bedrooms?: number | null;
   bathrooms?: number | null;
   garage?: number | null;
+  suites?: number | null;
   area?: number | null;
   price?: number | null;
   url?: string | null;
   images?: string[];
+  // características
+  pool?: boolean | null;
+  balcony?: boolean | null;
+  elevator?: boolean | null;
+  leisureArea?: boolean | null;
+  barbecue?: boolean | null;
+  petFriendly?: boolean | null;
+  furniture?: string | null; // Mobília (texto)
+  highStandard?: boolean | null;
   raw?: any; // payload original para auditoria
 }
 

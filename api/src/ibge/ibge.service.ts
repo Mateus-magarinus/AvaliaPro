@@ -88,6 +88,41 @@ export class IbgeService {
     );
   }
 
+  /** Centróide (lat/lng) do município, via IBGE malhas v4. Cacheado. */
+  async getMunicipalityCentroid(
+    city: string,
+    uf: string,
+  ): Promise<{ lat: number; lng: number } | null> {
+    const code = await this.resolveMunicipalityCode(city, uf);
+    if (!code) return null;
+
+    const cacheKey = `ibge:centroid:${code}`;
+    return this.cache.wrap<{ lat: number; lng: number } | null>(
+      cacheKey,
+      this.ttlSeconds,
+      async () => {
+        try {
+          const url = `${IBGE_BASE}/api/v4/malhas/municipios/${code}/metadados`;
+          const resp = await firstValueFrom(
+            this.http.get(url, { timeout: this.timeoutMs }),
+          );
+          const c = Array.isArray(resp.data)
+            ? resp.data[0]?.centroide
+            : resp.data?.centroide;
+          const lat = Number(c?.latitude);
+          const lng = Number(c?.longitude);
+          if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+          return { lat, lng };
+        } catch (err) {
+          this.logger.warn(
+            `Falha ao obter centróide do municipio ${code}: ${(err as Error).message}`,
+          );
+          return null;
+        }
+      },
+    );
+  }
+
   private async getMunicipiosByUf(uf: string): Promise<MunicipioRef[]> {
     const cacheKey = `ibge:municipios:${uf}`;
     return this.cache.wrap<MunicipioRef[]>(

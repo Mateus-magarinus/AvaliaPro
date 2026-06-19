@@ -198,7 +198,7 @@ export class RealEstateDocument extends MongoAbstractDocument {
   Piscina: boolean;
 
   @Prop()
-  Churrasqueira: string;
+  Churrasqueira: boolean;
 
   @Prop()
   Sacada: boolean;

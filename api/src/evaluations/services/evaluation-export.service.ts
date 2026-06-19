@@ -8,21 +8,41 @@ const BRAND_LIGHT = 'dff0f5';
 
 const COLUMNS = [
   { header: 'ID', key: 'id', width: 8 },
+  { header: 'Código', key: 'code', width: 12 },
+  { header: 'Tipo', key: 'propertyType', width: 16 },
   { header: 'Município', key: 'city', width: 22 },
+  { header: 'UF', key: 'state', width: 6 },
   { header: 'Bairro', key: 'neighborhood', width: 22 },
   { header: 'Endereço', key: 'address', width: 35 },
-  { header: 'Quartos', key: 'bedrooms', width: 10 },
-  { header: 'Banheiros', key: 'bathrooms', width: 11 },
-  { header: 'Garagem', key: 'garageSpots', width: 10 },
   { header: 'Área (m²)', key: 'totalArea', width: 12 },
   { header: 'Valor total (R$)', key: 'totalValue', width: 18 },
   { header: 'Valor/m² (R$)', key: 'unitValue', width: 16 },
+  { header: 'Quartos', key: 'bedrooms', width: 10 },
+  { header: 'Suítes', key: 'suites', width: 9 },
+  { header: 'Banheiros', key: 'bathrooms', width: 11 },
+  { header: 'Garagem', key: 'garageSpots', width: 10 },
+  { header: 'Piscina', key: 'pool', width: 10 },
+  { header: 'Sacada', key: 'balcony', width: 10 },
+  { header: 'Elevador', key: 'elevator', width: 10 },
+  { header: 'Área lazer', key: 'leisureArea', width: 12 },
+  { header: 'Churrasqueira', key: 'barbecue', width: 14 },
+  { header: 'Mobília', key: 'furniture', width: 16 },
+  { header: 'Aceita pet', key: 'petFriendly', width: 11 },
+  { header: 'Alto padrão', key: 'highStandard', width: 12 },
   { header: 'Renda município (R$)', key: 'ibgeIncome', width: 20 },
   { header: 'Renda setor (R$)', key: 'sectorIncome', width: 18 },
   { header: 'Latitude', key: 'latitude', width: 14 },
   { header: 'Longitude', key: 'longitude', width: 14 },
+  { header: 'Fonte', key: 'source', width: 12 },
   { header: 'Link', key: 'contactLink', width: 40 },
 ] as const;
+
+/** Booleano → "Sim"/"Não"/"" (nulo = desconhecido). */
+function sn(v: boolean | null | undefined): string {
+  if (v === true) return 'Sim';
+  if (v === false) return 'Não';
+  return '';
+}
 
 @Injectable()
 export class EvaluationExportService {
@@ -92,19 +112,32 @@ export class EvaluationExportService {
     properties.forEach((prop, rowIndex) => {
       const row = sheet.addRow({
         id: prop.id,
+        code: prop.code ?? '',
+        propertyType: prop.propertyType ?? '',
         city: prop.city ?? '',
+        state: prop.state ?? '',
         neighborhood: prop.neighborhood ?? '',
         address: prop.address ?? '',
-        bedrooms: prop.bedrooms ?? null,
-        bathrooms: prop.bathrooms ?? null,
-        garageSpots: prop.garageSpots ?? null,
         totalArea: prop.totalArea ? Number(prop.totalArea) : null,
         totalValue: prop.totalValue ? Number(prop.totalValue) : null,
         unitValue: prop.unitValue ? Number(prop.unitValue) : null,
+        bedrooms: prop.bedrooms ?? null,
+        suites: prop.suites ?? null,
+        bathrooms: prop.bathrooms ?? null,
+        garageSpots: prop.garageSpots ?? null,
+        pool: sn(prop.pool),
+        balcony: sn(prop.balcony),
+        elevator: sn(prop.elevator),
+        leisureArea: sn(prop.leisureArea),
+        barbecue: sn(prop.barbecue),
+        furniture: prop.furniture ?? '',
+        petFriendly: sn(prop.petFriendly),
+        highStandard: sn(prop.highStandard),
         ibgeIncome: prop.ibgeIncome ? Number(prop.ibgeIncome) : null,
         sectorIncome: prop.sectorIncome ? Number(prop.sectorIncome) : null,
         latitude: prop.latitude ? Number(prop.latitude) : null,
         longitude: prop.longitude ? Number(prop.longitude) : null,
+        source: prop.source ?? '',
         contactLink: prop.contactLink ?? '',
       });
 

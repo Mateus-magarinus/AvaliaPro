@@ -74,6 +74,48 @@ export class RealEstateFiltersDto {
   @Type(() => Number)
   @IsInt()
   bathrooms?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  suites?: number;
+
+  @IsOptional()
+  @IsString()
+  q?: string;
+
+  // características (booleanas)
+  @IsOptional()
+  @IsBoolean()
+  highStandard?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  furnished?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  pool?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  balcony?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  elevator?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  leisureArea?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  barbecue?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  petFriendly?: boolean;
 }
 
 export class CreateEvaluationOptionsDto {

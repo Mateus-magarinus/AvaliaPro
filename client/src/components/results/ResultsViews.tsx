@@ -240,6 +240,7 @@ export default function ResultsViews({
   const [tab, setTab] = useState<Tab>("table");
   const [selectedId, setSelectedId] = useState<number | null>(properties[0]?.id ?? null);
   const [exportingXlsx, setExportingXlsx] = useState(false);
+  const [cityCenter, setCityCenter] = useState<{ lat: number; lng: number } | null>(null);
   const [columns, setColumns] = useState<ColumnPref[]>(DEFAULT_COLUMNS);
   const [columnsPanelOpen, setColumnsPanelOpen] = useState(false);
   const [statusSaving, setStatusSaving] = useState(false);
@@ -269,6 +270,25 @@ export default function ResultsViews({
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    const city = evaluation.city?.trim();
+    const uf = evaluation.state?.trim() || "RS";
+    if (!city) return;
+    let cancelled = false;
+    apiFetch<{ centroid: { lat: number; lng: number } | null }>(
+      `/ibge/centroid?city=${encodeURIComponent(city)}&uf=${encodeURIComponent(uf)}`,
+    )
+      .then((data) => {
+        if (!cancelled && data?.centroid) setCityCenter(data.centroid);
+      })
+      .catch(() => {
+        // sem centróide → mapa cai para a mediana dos pontos
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [evaluation.city, evaluation.state]);
 
   const visibleColumns = useMemo(
     () => columns.filter((c) => c.visible).sort((a, b) => a.order - b.order),
@@ -328,39 +348,66 @@ export default function ResultsViews({
   }
 
   function exportCsv() {
+    const sn = (v: boolean | null | undefined) => (v === true ? "Sim" : v === false ? "Não" : "");
     const header = [
       "ID",
+      "Codigo",
+      "Tipo",
       "Municipio",
+      "UF",
       "Bairro",
       "Endereco",
-      "Quartos",
-      "Banheiros",
-      "Garagem",
       "Area total",
       "Valor total",
       "Valor por m2",
+      "Quartos",
+      "Suites",
+      "Banheiros",
+      "Garagem",
+      "Piscina",
+      "Sacada",
+      "Elevador",
+      "Area lazer",
+      "Churrasqueira",
+      "Mobilia",
+      "Aceita pet",
+      "Alto padrao",
       "Renda municipio",
       "Renda setor",
       "Latitude",
       "Longitude",
+      "Fonte",
       "Link",
     ];
 
     const rows = properties.map((property) => [
       property.id,
+      property.code,
+      property.propertyType,
       property.city,
+      property.state,
       property.neighborhood,
       property.address,
-      property.bedrooms,
-      property.bathrooms,
-      property.garageSpots,
       property.totalArea,
       property.totalValue,
       property.unitValue,
+      property.bedrooms,
+      property.suites,
+      property.bathrooms,
+      property.garageSpots,
+      sn(property.pool),
+      sn(property.balcony),
+      sn(property.elevator),
+      sn(property.leisureArea),
+      sn(property.barbecue),
+      property.furniture,
+      sn(property.petFriendly),
+      sn(property.highStandard),
       property.ibgeIncome,
       property.sectorIncome,
       property.latitude,
       property.longitude,
+      property.source,
       property.contactLink,
     ]);
 
@@ -520,6 +567,7 @@ export default function ResultsViews({
             {tab === "map" && (
               <MapView
                 points={mapPoints}
+                cityCenter={cityCenter}
                 onOpenProperty={(id) => {
                   setSelectedId(Number(id));
                   setTab("details");

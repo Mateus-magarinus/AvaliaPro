@@ -36,6 +36,8 @@ services:
       OVERPASS_URL: ${OVERPASS_URL:-https://overpass-api.de/api/interpreter}
       OVERPASS_TIMEOUT_MS: ${OVERPASS_TIMEOUT_MS:-15000}
       GEO_CACHE_TTL_HOURS: ${GEO_CACHE_TTL_HOURS:-24}
+
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-}
     expose:
       - "3000"
     depends_on:

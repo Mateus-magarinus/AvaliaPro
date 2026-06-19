@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import { getAccessToken } from "@/lib/auth";
+import UserMenu from "./UserMenu";
 import type { QuotaStatus, UserRecord } from "@/types/avaliapro";
 
 type DashboardItem = "evaluations" | "history" | "profile" | "plans" | "support" | "admin";
@@ -39,7 +40,7 @@ const BASE_NAV_ITEMS: Array<{
 }> = [
   { id: "evaluations", label: "Avaliações", href: "/", icon: <List className="h-5 w-5" /> },
   { id: "history", label: "Histórico", href: "/history", icon: <History className="h-5 w-5" /> },
-  { id: "profile", label: "Perfil", icon: <UserIcon className="h-5 w-5" /> },
+  { id: "profile", label: "Perfil", href: "/profile", icon: <UserIcon className="h-5 w-5" /> },
   { id: "plans", label: "Planos", href: "/billing", icon: <CreditCard className="h-5 w-5" /> },
   { id: "support", label: "Suporte", icon: <HelpCircle className="h-5 w-5" /> },
   { id: "admin", label: "Admin", href: "/admin", icon: <Shield className="h-5 w-5" />, adminOnly: true },
@@ -53,7 +54,7 @@ export default function DashboardShell({
 }: DashboardShellProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [quota, setQuota] = useState<QuotaStatus | null>(null);
-  const [userRole, setUserRole] = useState<string>("user");
+  const [user, setUser] = useState<UserRecord | null>(null);
 
   useEffect(() => {
     if (!getAccessToken()) return;
@@ -62,9 +63,11 @@ export default function DashboardShell({
       apiFetch<UserRecord>("/users/me").catch(() => null),
     ]).then(([quotaData, userData]) => {
       if (quotaData) setQuota(quotaData);
-      if (userData) setUserRole(userData.role);
+      if (userData) setUser(userData);
     });
   }, []);
+
+  const userRole = user?.role ?? "user";
 
   const navItems = useMemo(
     () => BASE_NAV_ITEMS.filter((item) => !item.adminOnly || userRole === "admin"),
@@ -82,7 +85,9 @@ export default function DashboardShell({
       <header className="sticky top-0 z-30 border-b border-slate-300 bg-white/95 backdrop-blur">
         <div className="mx-auto flex h-24 max-w-7xl items-center justify-between px-4 sm:px-6 lg:h-28 lg:px-8">
           <div className="flex items-center gap-8">
-            <Image src="/images/logo_rd.png" alt="AvaliaPro" width={82} height={82} priority className="h-16 w-auto object-contain" />
+            <Link href="/" aria-label="Início">
+              <Image src="/images/logo_rd.png" alt="AvaliaPro" width={120} height={120} priority className="h-20 w-auto object-contain lg:h-24" />
+            </Link>
             <button
               className="rounded-md p-2 text-[#062650] hover:bg-slate-100 lg:hidden"
               aria-label="Abrir menu"
@@ -109,13 +114,7 @@ export default function DashboardShell({
               <span className="hidden sm:inline">Iniciar avaliação</span>
               <span className="sm:hidden">Iniciar</span>
             </button>
-            <button
-              onClick={onLogout}
-              className="grid h-11 w-11 place-items-center rounded-full border border-[#062650] text-[#062650]"
-              aria-label="Sair"
-            >
-              <UserIcon className="h-5 w-5" />
-            </button>
+            <UserMenu onLogout={onLogout} />
           </div>
         </div>
       </header>

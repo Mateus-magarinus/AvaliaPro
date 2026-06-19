@@ -13,4 +13,11 @@ export class IbgeController {
     const income = await this.ibgeService.getAverageIncome(city, uf ?? 'RS');
     return { city, uf: uf ?? 'RS', averageIncome: income };
   }
+
+  /** Centróide (lat/lng) do município — usado para centralizar o mapa. */
+  @Get('centroid')
+  async centroid(@Query('city') city: string, @Query('uf') uf: string) {
+    const centroid = await this.ibgeService.getMunicipalityCentroid(city, uf ?? 'RS');
+    return { city, uf: uf ?? 'RS', centroid };
+  }
 }

@@ -121,6 +121,17 @@ export class ColigadasMapper {
       Exclusividade: !!raw.Exclusividade,
       Especial: !!raw.Especial,
       AltoPadrao: !!raw.AltoPadrao,
+
+      // Características (para filtros) — booleanos/string conforme a Coligadas
+      Piscina: toBool(raw.Piscina),
+      Sacada: toBool(raw.Sacada),
+      Churrasqueira: toBool(raw.Churrasqueira),
+      AreaLazer: toBool(raw.AreaLazer),
+      AceitaPet: toBool(raw.AceitaPet),
+      DependenciaEmpregada: toBool(raw.DependenciaEmpregada),
+      Terraco: toBool(raw.Terraco),
+      Elevador: toInt(raw.Elevador) ?? 0,
+      Mobilia: raw.Mobilia ?? null,
     };
     return doc;
   }
