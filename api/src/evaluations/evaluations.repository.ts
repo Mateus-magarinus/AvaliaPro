@@ -41,6 +41,14 @@ export class EvaluationsRepository extends AbstractRepository<Evaluation> {
   }
 
   /**
+   * Remove todas as avaliações de um usuário (e, por cascata de FK,
+   * as propriedades vinculadas). Usado ao excluir a conta.
+   */
+  async deleteByUser(userId: number): Promise<void> {
+    await this.evaluationsOrmRepo.delete({ user: { id: userId } } as any);
+  }
+
+  /**
    * Helper: busca uma Evaluation garantindo ownership (user.id).
    * Aceita relations opcionais.
    */

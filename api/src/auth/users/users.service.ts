@@ -4,7 +4,6 @@ import {
   UnprocessableEntityException,
   Logger,
   NotFoundException,
-  BadRequestException,
 } from '@nestjs/common';
 import * as bcrypt from 'bcryptjs';
 import { CreateUserDto } from './dto/create-user.dto';
@@ -88,15 +87,11 @@ export class UsersService {
   }
 
   async deleteMe(userId: number | string) {
-    const has = await this.evaluationsRepository.count({
-      user: { id: Number(userId) },
-    } as any);
-    if (has > 0) {
-      throw new BadRequestException(
-        'Account deletion blocked: evaluations are linked to this account.',
-      );
-    }
-    return this.usersRepository.findOneAndDelete({ id: Number(userId) } as any);
+    const id = Number(userId);
+    // Remove as avaliações do usuário (cascateia para as propriedades).
+    // As assinaturas têm onDelete: CASCADE e somem junto com o usuário.
+    await this.evaluationsRepository.deleteByUser(id);
+    return this.usersRepository.findOneAndDelete({ id } as any);
   }
 
   async verifyUser(email: string, password: string) {

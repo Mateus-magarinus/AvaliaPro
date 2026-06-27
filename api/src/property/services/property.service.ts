@@ -159,6 +159,7 @@ export class PropertyService {
   async attachFromExternalDocs(
     evaluationId: string,
     docs: ExternalDoc[],
+    maxInsert?: number,
   ): Promise<number> {
     if (!docs?.length) return 0;
 
@@ -268,7 +269,7 @@ export class PropertyService {
 
     if (!mapped.length) return 0;
 
-    return this.propertyRepo.insertManyDedup(evaluationId, mapped);
+    return this.propertyRepo.insertManyDedup(evaluationId, mapped, maxInsert);
   }
 
   async listByEvaluation(

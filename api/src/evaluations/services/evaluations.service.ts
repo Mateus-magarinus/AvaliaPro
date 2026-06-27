@@ -80,11 +80,30 @@ export class EvaluationsService {
 
     let attached = 0;
     if (attachTarget > 0) {
-      const docs = await this.findMany(f, { limit: attachTarget });
-      attached = await this.propertiesService.attachFromExternalDocs(
-        String(evaluation.id),
-        docs as any,
-      );
+      // Pagina e "completa" até atingir o alvo de imóveis DISTINTOS.
+      // Necessário porque o dedup (cidade|bairro|endereço|valor) pode descartar
+      // alguns docs, fazendo o número anexado ficar abaixo do alvo (ex.: 68/70).
+      let offset = 0;
+      let guard = 0;
+      while (
+        attached < attachTarget &&
+        offset < Number(total) &&
+        guard < 20 // trava de segurança contra loop infinito
+      ) {
+        const remaining = attachTarget - attached;
+        const docs = await this.findMany(f, {
+          limit: attachTarget,
+          offset,
+        });
+        if (!docs.length) break;
+        attached += await this.propertiesService.attachFromExternalDocs(
+          String(evaluation.id),
+          docs as any,
+          remaining,
+        );
+        offset += docs.length;
+        guard++;
+      }
 
       // Enriquecimento socioeconômico (IBGE) — não bloqueia em caso de falha
       await this.propertiesService.enrichWithIbge(

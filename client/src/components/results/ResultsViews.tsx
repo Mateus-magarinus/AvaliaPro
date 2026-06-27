@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
-import { AlertTriangle, CheckCircle2, ChevronLeft, ChevronRight, Download, ExternalLink, FileSpreadsheet, GripVertical, ImageIcon, Pencil, MapPin, RotateCcw, Save, SlidersHorizontal, Table2, X } from "lucide-react";
+import { AlertTriangle, CheckCircle2, ChevronLeft, ChevronRight, Download, ExternalLink, FileSpreadsheet, GripVertical, HelpCircle, ImageIcon, Pencil, MapPin, RotateCcw, Save, SlidersHorizontal, Table2, X } from "lucide-react";
 import MapView, { MapPoint } from "./MapView";
 import { apiFetch } from "@/lib/api";
 import { getAccessToken } from "@/lib/auth";
@@ -21,6 +21,54 @@ const DEFAULT_COLUMNS: ColumnPref[] = [
   { columnKey: "sectorIncome", label: "Renda setor", visible: true, order: 7 },
   { columnKey: "contactLink", label: "Link", visible: true, order: 8 },
 ];
+
+/** Textos explicativos exibidos ao passar o mouse no ícone de ajuda. */
+const COLUMN_HINTS: Record<string, string> = {
+  ibgeIncome:
+    "Rendimento médio mensal das pessoas com rendimento no município, segundo o IBGE (Pesquisa agregado 1685). É uma referência socioeconômica geral da cidade.",
+  sectorIncome:
+    "Rendimento médio mensal dos responsáveis por domicílio no setor censitário onde o imóvel está localizado (Censo IBGE 2022). É mais específico que a renda do município, mas pode variar bastante em setores com poucos respondentes ou com dado suprimido pelo IBGE.",
+};
+
+/**
+ * Ícone de ajuda com um pequeno texto explicativo exibido ao passar o mouse.
+ * O balão usa posição `fixed` calculada a partir do ícone para não ser cortado
+ * por containers com `overflow` (ex.: a tabela com scroll horizontal).
+ */
+function HelpHint({ text }: { text: string }) {
+  const [coords, setCoords] = useState<{ top: number; left: number } | null>(null);
+
+  function show(event: { currentTarget: HTMLElement }) {
+    const rect = event.currentTarget.getBoundingClientRect();
+    setCoords({ top: rect.top, left: rect.left + rect.width / 2 });
+  }
+
+  return (
+    <span className="inline-flex items-center align-middle">
+      <button
+        type="button"
+        aria-label="Mais informações"
+        onClick={(event) => event.stopPropagation()}
+        onMouseEnter={show}
+        onMouseLeave={() => setCoords(null)}
+        onFocus={show}
+        onBlur={() => setCoords(null)}
+        className="inline-flex cursor-help text-slate-400 transition-colors hover:text-[#062650] focus:outline-none focus-visible:text-[#062650]"
+      >
+        <HelpCircle className="h-3.5 w-3.5" />
+      </button>
+      {coords && (
+        <span
+          role="tooltip"
+          style={{ top: coords.top, left: coords.left }}
+          className="pointer-events-none fixed z-50 w-60 -translate-x-1/2 -translate-y-full -mt-2 rounded-md bg-[#062650] px-3 py-2 text-xs font-normal normal-case leading-snug text-white shadow-lg"
+        >
+          {text}
+        </span>
+      )}
+    </span>
+  );
+}
 
 function numberValue(value: number | string | null | undefined) {
   const n = typeof value === "number" ? value : Number(value);
@@ -522,7 +570,10 @@ export default function ResultsViews({
                         <th className="px-3 py-2">ID</th>
                         {visibleColumns.map((col) => (
                           <th key={col.columnKey} className="px-3 py-2">
-                            {col.label}
+                            <span className="inline-flex items-center gap-1">
+                              {col.label}
+                              {COLUMN_HINTS[col.columnKey] && <HelpHint text={COLUMN_HINTS[col.columnKey]} />}
+                            </span>
                           </th>
                         ))}
                       </tr>
@@ -938,8 +989,8 @@ function PropertyDetails({
             <Info label="Município" value={property.city} />
             <Info label="Bairro" value={property.neighborhood || "-"} />
             <Info label="Endereço" value={property.address} />
-            <Info label="Renda município" value={formatMoney(property.ibgeIncome)} />
-            <Info label="Renda setor" value={renderCell("sectorIncome", property)} />
+            <Info label="Renda município" value={formatMoney(property.ibgeIncome)} hint={COLUMN_HINTS.ibgeIncome} />
+            <Info label="Renda setor" value={renderCell("sectorIncome", property)} hint={COLUMN_HINTS.sectorIncome} />
             <Info label="Quartos" value={property.bedrooms ?? "-"} />
             <Info label="Banheiros" value={property.bathrooms ?? "-"} />
             <Info label="Garagem" value={property.garageSpots ?? "-"} />
@@ -979,10 +1030,13 @@ function EditField({
   );
 }
 
-function Info({ label, value }: { label: string; value: ReactNode }) {
+function Info({ label, value, hint }: { label: string; value: ReactNode; hint?: string }) {
   return (
     <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
-      <p className="text-xs font-medium uppercase text-slate-500">{label}</p>
+      <p className="flex items-center gap-1 text-xs font-medium uppercase text-slate-500">
+        {label}
+        {hint && <HelpHint text={hint} />}
+      </p>
       <p className="mt-1 text-base font-semibold text-[#062650]">{value}</p>
     </div>
   );

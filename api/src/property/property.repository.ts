@@ -38,6 +38,7 @@ export class PropertyRepository extends AbstractRepository<Property> {
   async insertManyDedup(
     evaluationId: string | number,
     items: Partial<Property>[],
+    maxInsert?: number,
   ): Promise<number> {
     if (!items?.length) return 0;
 
@@ -131,6 +132,8 @@ export class PropertyRepository extends AbstractRepository<Property> {
         .getRawOne();
 
       if (!exists) filtered.push(it);
+      // Para de coletar assim que atinge o limite de inserção solicitado.
+      if (maxInsert != null && filtered.length >= maxInsert) break;
     }
     this.logger.debug(`insertManyDedup: toInsert=${filtered.length}`);
     if (!filtered.length) return 0;
