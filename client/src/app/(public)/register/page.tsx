@@ -11,6 +11,7 @@ export default function RegisterPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [consent, setConsent] = useState(false);
 
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
@@ -30,6 +31,12 @@ export default function RegisterPage() {
 
     if (password !== confirmPassword) {
       setError("As senhas não conferem");
+      setLoading(false);
+      return;
+    }
+
+    if (!consent) {
+      setError("É necessário aceitar a Política de Privacidade para continuar");
       setLoading(false);
       return;
     }
@@ -191,6 +198,27 @@ export default function RegisterPage() {
                     required
                   />
                 </div>
+
+                <label className="mb-6 flex items-start gap-2 text-sm text-gray-700">
+                  <input
+                    type="checkbox"
+                    className="mt-1 h-4 w-4 shrink-0 accent-brand-dark"
+                    checked={consent}
+                    onChange={(e) => setConsent(e.target.checked)}
+                  />
+                  <span>
+                    Li e concordo com a{" "}
+                    <a
+                      href="/privacy"
+                      target="_blank"
+                      rel="noreferrer"
+                      className="font-semibold text-brand-dark hover:underline"
+                    >
+                      Política de Privacidade
+                    </a>{" "}
+                    e o tratamento dos meus dados conforme a LGPD.
+                  </span>
+                </label>
 
                 <button
                   type="submit"

@@ -1,4 +1,5 @@
 import "../styles/globals.css";
+import ConsentBanner from "@/components/ConsentBanner";
 
 export const metadata = {
   title: "AvaliaPro",
@@ -12,7 +13,10 @@ export default function RootLayout({
 }) {
   return (
     <html lang="pt-BR">
-      <body>{children}</body>
+      <body>
+        {children}
+        <ConsentBanner />
+      </body>
     </html>
   );
 }
